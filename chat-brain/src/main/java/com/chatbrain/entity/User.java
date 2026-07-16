@@ -26,8 +26,6 @@ public class User {
 	@GeneratedValue(strategy = GenerationType.UUID)
 	private UUID id;
 
-	private String displayName;
-
 	private String realName;
 
 	private Integer relationshipScore = 0;
@@ -39,6 +37,10 @@ public class User {
 	private Instant createdAt;
 
 	private Instant updatedAt;
+
+	public static User create() {
+		return new User();
+	}
 
 	@PrePersist
 	void initializeTimestamps() {

@@ -53,6 +53,9 @@ logs/
 application-local.properties
 application-dev.properties
 
+# OAuth tokens
+data/tokens/
+
 # Temporary files
 *.tmp
 *.bak

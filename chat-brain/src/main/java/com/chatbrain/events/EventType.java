@@ -1,5 +1,6 @@
 package com.chatbrain.events;
 
 public enum EventType {
-	CHAT_MESSAGE
+	CHAT_MESSAGE,
+	USER_RESOLVED
 }

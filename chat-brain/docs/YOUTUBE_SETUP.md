@@ -133,34 +133,23 @@ Starting YouTube adapter...
 Connected to active YouTube livestream chat
 ```
 
-After typing `Hello ChatBrain` in live chat, expect the platform log:
+After typing `Hello ChatBrain` in live chat, expect the identity log:
 
 ```text
-Received YouTube live chat message
 Platform : YOUTUBE
 Channel ID : <stable YouTube channel ID>
-Visible Name : <exact name displayed by YouTube>
+Visible Name : <exact author name displayed by YouTube>
 Message : Hello ChatBrain
 Timestamp : <message timestamp>
-```
-
-The existing Spring listener then logs:
-
-```text
-Received ChatMessageEvent
-Platform : YOUTUBE
-Channel ID : <stable YouTube channel ID>
-Visible Name : <exact name displayed by YouTube>
-Message : Hello ChatBrain
-Timestamp : <event timestamp>
 ```
 
 ChatBrain keeps these YouTube values separate:
 
 - **Channel ID** is YouTube's permanent identifier for the author's channel and is the reliable identity key.
-- **Visible Name** is exactly what YouTube displays for the author in live chat. Depending on the user's channel configuration, it may be a handle, channel name, or nickname. It can change and is not a permanent identifier.
+- **Visible Name** is the exact value returned by the YouTube Live Chat API—the value YouTube displays beside the message. It may be a handle, nickname, channel name, or person's name. ChatBrain treats it as presentation data only and never derives or normalizes it.
+- **Real Name** belongs to ChatBrain's platform-independent user. It remains nullable and is never inferred automatically from the visible name.
 
-YouTube does not provide the author's real name through the live-chat response. ChatBrain does not guess it. Real names may be learned later by a separate Memory Engine milestone.
+Real names may only be learned later through the Identity Resolver or Memory Engine when explicitly supported.
 
 The first API response establishes the page cursor and is treated as existing chat history. Send the verification message after `Connected to active YouTube livestream chat` appears.
 

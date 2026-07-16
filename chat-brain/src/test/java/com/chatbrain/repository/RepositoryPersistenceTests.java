@@ -3,6 +3,7 @@ package com.chatbrain.repository;
 import com.chatbrain.entity.Alias;
 import com.chatbrain.entity.MemoryCategory;
 import com.chatbrain.entity.MemorySource;
+import com.chatbrain.entity.PlatformIdentity;
 import com.chatbrain.entity.User;
 import com.chatbrain.entity.UserMemory;
 import com.chatbrain.platform.Platform;
@@ -28,6 +29,9 @@ class RepositoryPersistenceTests {
 	private UserRepository userRepository;
 
 	@Autowired
+	private PlatformIdentityRepository platformIdentityRepository;
+
+	@Autowired
 	private AliasRepository aliasRepository;
 
 	@Autowired
@@ -39,24 +43,33 @@ class RepositoryPersistenceTests {
 	@Test
 	void repositoryBeansLoad() {
 		assertThat(userRepository).isNotNull();
+		assertThat(platformIdentityRepository).isNotNull();
 		assertThat(aliasRepository).isNotNull();
 		assertThat(userMemoryRepository).isNotNull();
 	}
 
 	@Test
-	void userRepositorySavesAndRetrievesUser() {
-		User user = instantiate(User.class);
-		String displayName = "repository-test-" + UUID.randomUUID();
-		user.setDisplayName(displayName);
-
-		userRepository.saveAndFlush(user);
+	void userAndPlatformIdentityRepositoriesSaveAndRetrieveIdentity() {
+		User user = User.create();
+		user.setRelationshipScore(1);
+		User savedUser = userRepository.saveAndFlush(user);
+		String channelId = "repository-test-" + UUID.randomUUID();
+		PlatformIdentity identity = new PlatformIdentity(
+				Platform.YOUTUBE,
+				channelId,
+				"Test Viewer",
+				savedUser);
+		platformIdentityRepository.saveAndFlush(identity);
 		entityManager.clear();
 
-		assertThat(userRepository.findByDisplayName(displayName))
+		assertThat(platformIdentityRepository.findByPlatformAndChannelId(
+				Platform.YOUTUBE,
+				channelId))
 				.isPresent()
 				.get()
-				.extracting(User::getRelationshipScore)
-				.isEqualTo(0);
+				.extracting(PlatformIdentity::getVisibleName)
+				.isEqualTo("Test Viewer");
+		assertThat(userRepository.findById(savedUser.getId())).isPresent();
 	}
 
 	@Test

@@ -196,7 +196,6 @@ public final class YouTubePlatformAdapter implements PlatformAdapter {
 
 		LOGGER.info("""
 				----------------------------------
-				Received YouTube live chat message
 				Platform : {}
 				Channel ID : {}
 				Visible Name : {}

@@ -15,7 +15,6 @@ public class ChatMessageListener {
 	public void onChatMessage(ChatMessageEvent event) {
 		LOGGER.info("""
 				----------------------------------
-				Received ChatMessageEvent
 				Platform : {}
 				Channel ID : {}
 				Visible Name : {}

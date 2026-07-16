@@ -9,8 +9,8 @@ public final class ChatMessageEvent extends BaseEvent {
 	private final String visibleName;
 	private final String message;
 
-	public ChatMessageEvent(String platform, String username, String message) {
-		this(platform, username, username, message);
+	public ChatMessageEvent(String platform, String channelId, String message) {
+		this(platform, channelId, channelId, message);
 	}
 
 	public ChatMessageEvent(
@@ -27,10 +27,6 @@ public final class ChatMessageEvent extends BaseEvent {
 
 	public String getPlatform() {
 		return platform;
-	}
-
-	public String getUsername() {
-		return channelId;
 	}
 
 	public String getChannelId() {
