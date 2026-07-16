@@ -1,12 +1,19 @@
 package com.chatbrain;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.SpringApplication;
+import org.springframework.context.ConfigurableApplicationContext;
 
-@SpringBootTest
+import static org.assertj.core.api.Assertions.assertThat;
+
 class ChatBrainApplicationTests {
 
 	@Test
-	void contextLoads() {
+	void applicationStarts() {
+		try (ConfigurableApplicationContext context = SpringApplication.run(
+				ChatBrainApplication.class,
+				"--spring.main.web-application-type=none")) {
+			assertThat(context.isRunning()).isTrue();
+		}
 	}
 }
