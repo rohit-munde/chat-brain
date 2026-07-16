@@ -17,11 +17,15 @@ public class ChatMessageListener {
 				----------------------------------
 				Received ChatMessageEvent
 				Platform : {}
-				Username : {}
+				Channel ID : {}
+				Visible Name : {}
 				Message : {}
+				Timestamp : {}
 				----------------------------------""",
 				event.getPlatform(),
-				event.getUsername(),
-				event.getMessage());
+				event.getChannelId(),
+				event.getVisibleName(),
+				event.getMessage(),
+				event.getTimestamp());
 	}
 }

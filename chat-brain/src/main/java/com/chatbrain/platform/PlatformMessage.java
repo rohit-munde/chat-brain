@@ -4,8 +4,8 @@ import java.time.Instant;
 
 public record PlatformMessage(
 		Platform platform,
-		String username,
-		String displayName,
+		String channelId,
+		String visibleName,
 		String message,
 		Instant timestamp) {
 }
