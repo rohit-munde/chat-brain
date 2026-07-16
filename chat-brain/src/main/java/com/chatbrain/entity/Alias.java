@@ -1,5 +1,6 @@
 package com.chatbrain.entity;
 
+import com.chatbrain.platform.Platform;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
