@@ -4,12 +4,11 @@ import com.chatbrain.events.ChatMessageEvent;
 import com.chatbrain.platform.Platform;
 import com.chatbrain.platform.PlatformAdapter;
 import com.chatbrain.platform.PlatformMessage;
+import com.chatbrain.platform.PlatformMessageSender;
 import com.chatbrain.platform.events.PlatformMessageMapper;
 import com.google.api.client.googleapis.json.GoogleJsonResponseException;
 import com.google.api.services.youtube.YouTube;
 import com.google.api.services.youtube.model.Channel;
-import com.google.api.services.youtube.model.LiveBroadcast;
-import com.google.api.services.youtube.model.LiveBroadcastListResponse;
 import com.google.api.services.youtube.model.LiveChatMessage;
 import com.google.api.services.youtube.model.LiveChatMessageAuthorDetails;
 import com.google.api.services.youtube.model.LiveChatMessageListResponse;
@@ -28,6 +27,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -35,26 +35,32 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 @Component
 @ConditionalOnProperty(name = "chatbrain.youtube.enabled", havingValue = "true")
-public final class YouTubePlatformAdapter implements PlatformAdapter {
+public final class YouTubePlatformAdapter implements PlatformAdapter, PlatformMessageSender {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(YouTubePlatformAdapter.class);
-	private static final String REPLY_TRIGGER = "hello bot";
-	private static final String REPLY_MESSAGE = "Hello Rupa, naha liya???";
 	private static final long RETRY_DELAY_MILLIS = 5_000L;
+	private static final Set<String> INVALID_SESSION_REASONS = Set.of(
+			"liveChatDisabled",
+			"liveChatEnded",
+			"liveChatNotFound");
 
 	private final YouTube youtube;
+	private final LiveChatSessionManager sessionManager;
 	private final PlatformMessageMapper messageMapper;
 	private final ApplicationEventPublisher eventPublisher;
 	private final ConcurrentHashMap<String, YouTubeAuthorIdentity> authorIdentityCache =
 			new ConcurrentHashMap<>();
 	private final AtomicBoolean running = new AtomicBoolean(false);
+	private volatile String activeLiveChatId;
 	private ExecutorService pollingExecutor;
 
 	public YouTubePlatformAdapter(
 			YouTube youtube,
+			LiveChatSessionManager sessionManager,
 			PlatformMessageMapper messageMapper,
 			ApplicationEventPublisher eventPublisher) {
 		this.youtube = youtube;
+		this.sessionManager = sessionManager;
 		this.messageMapper = messageMapper;
 		this.eventPublisher = eventPublisher;
 	}
@@ -95,19 +101,25 @@ public final class YouTubePlatformAdapter implements PlatformAdapter {
 			pollingExecutor.shutdownNow();
 			pollingExecutor = null;
 		}
+		activeLiveChatId = null;
 	}
 
 	private void pollActiveLiveChat() {
 		while (shouldContinuePolling()) {
 			try {
-				String liveChatId = findActiveLiveChatId();
-				if (liveChatId == null) {
+				Optional<LiveChatSession> session = sessionManager.currentSession();
+				if (session.isEmpty()) {
 					waitBeforeRetry();
 					continue;
 				}
 
 				LOGGER.info("Connected to active YouTube livestream chat");
-				pollMessages(liveChatId);
+				activeLiveChatId = session.get().liveChatId();
+				try {
+					pollMessages(session.get());
+				} finally {
+					activeLiveChatId = null;
+				}
 				if (shouldContinuePolling()) {
 					waitBeforeRetry();
 				}
@@ -121,53 +133,53 @@ public final class YouTubePlatformAdapter implements PlatformAdapter {
 		}
 	}
 
-	private String findActiveLiveChatId() throws IOException {
-		LiveBroadcastListResponse response = youtube.liveBroadcasts()
-				.list(List.of("snippet"))
-				.setBroadcastStatus("active")
-				.execute();
-
-		List<LiveBroadcast> activeBroadcasts = Optional.ofNullable(response.getItems())
-				.orElseGet(List::of);
-		if (activeBroadcasts.isEmpty()) {
-			LOGGER.warn("No active YouTube livestream was found; discovery will be retried");
-			return null;
-		}
-
-		String liveChatId = activeBroadcasts.stream()
-				.map(LiveBroadcast::getSnippet)
-				.filter(snippet -> snippet != null)
-				.map(snippet -> snippet.getLiveChatId())
-				.filter(candidateChatId -> candidateChatId != null && !candidateChatId.isBlank())
-				.findFirst()
-				.orElse(null);
-		if (liveChatId == null) {
-			LOGGER.warn("An active YouTube livestream was found, but live chat is unavailable; discovery will be retried");
-		}
-		return liveChatId;
-	}
-
-	private void pollMessages(String liveChatId) {
+	private void pollMessages(LiveChatSession session) {
 		String nextPageToken = null;
 		boolean initialPage = true;
 
 		while (shouldContinuePolling()) {
 			try {
-				LiveChatMessageListResponse response = requestMessages(liveChatId, nextPageToken);
+				LiveChatMessageListResponse response = requestMessages(session.liveChatId(), nextPageToken);
+				if (chatEnded(response)) {
+					sessionManager.invalidate();
+					return;
+				}
 				if (!initialPage) {
-					publishMessages(liveChatId, response);
+					publishMessages(response);
 				}
 				initialPage = false;
 				nextPageToken = response.getNextPageToken();
 				waitForNextPoll(response.getPollingIntervalMillis());
 			} catch (GoogleJsonResponseException exception) {
 				logApiFailure("polling live chat", exception);
-				return;
+				if (invalidatesSession(exception)) {
+					sessionManager.invalidate();
+					return;
+				}
+				waitBeforeRetry();
 			} catch (IOException exception) {
 				logNetworkFailure("polling live chat", exception);
 				waitBeforeRetry();
 			}
 		}
+	}
+
+	private boolean chatEnded(LiveChatMessageListResponse response) {
+		return Optional.ofNullable(response.getItems())
+				.orElseGet(List::of)
+				.stream()
+				.map(LiveChatMessage::getSnippet)
+				.filter(snippet -> snippet != null)
+				.anyMatch(snippet -> "chatEndedEvent".equals(snippet.getType()));
+	}
+
+	private boolean invalidatesSession(GoogleJsonResponseException exception) {
+		if (exception.getDetails() == null || exception.getDetails().getErrors() == null) {
+			return false;
+		}
+		return exception.getDetails().getErrors().stream()
+				.map(error -> error.getReason())
+				.anyMatch(INVALID_SESSION_REASONS::contains);
 	}
 
 	private LiveChatMessageListResponse requestMessages(String liveChatId, String nextPageToken)
@@ -178,13 +190,13 @@ public final class YouTubePlatformAdapter implements PlatformAdapter {
 				.execute();
 	}
 
-	private void publishMessages(String liveChatId, LiveChatMessageListResponse response) {
+	private void publishMessages(LiveChatMessageListResponse response) {
 		Optional.ofNullable(response.getItems())
 				.orElseGet(List::of)
-				.forEach(message -> publishMessage(liveChatId, message));
+				.forEach(this::publishMessage);
 	}
 
-	private void publishMessage(String liveChatId, LiveChatMessage liveChatMessage) {
+	private void publishMessage(LiveChatMessage liveChatMessage) {
 		LiveChatMessageSnippet snippet = liveChatMessage.getSnippet();
 		LiveChatMessageAuthorDetails author = liveChatMessage.getAuthorDetails();
 		if (snippet == null
@@ -229,10 +241,6 @@ public final class YouTubePlatformAdapter implements PlatformAdapter {
 		} catch (RuntimeException exception) {
 			LOGGER.error("Failed to publish YouTube chat message event for platform user {}",
 					platformMessage.platformUserId(), exception);
-		}
-
-		if (REPLY_TRIGGER.equalsIgnoreCase(platformMessage.message().trim())) {
-			sendReply(liveChatId);
 		}
 	}
 
@@ -279,9 +287,16 @@ public final class YouTubePlatformAdapter implements PlatformAdapter {
 		return new YouTubeAuthorIdentity(null, author.getDisplayName());
 	}
 
-	private void sendReply(String liveChatId) {
+	@Override
+	public void sendMessage(String message) {
+		String liveChatId = activeLiveChatId;
+		if (liveChatId == null) {
+			LOGGER.warn("Cannot send YouTube message because no active live chat is connected");
+			return;
+		}
+
 		LiveChatTextMessageDetails textMessageDetails = new LiveChatTextMessageDetails()
-				.setMessageText(REPLY_MESSAGE);
+				.setMessageText(message);
 		LiveChatMessageSnippet snippet = new LiveChatMessageSnippet()
 				.setLiveChatId(liveChatId)
 				.setType("textMessageEvent")
@@ -292,7 +307,7 @@ public final class YouTubePlatformAdapter implements PlatformAdapter {
 			youtube.liveChatMessages()
 					.insert(List.of("snippet"), reply)
 					.execute();
-			LOGGER.info("Sent hardcoded ChatBrain reply");
+			LOGGER.info("Sent ChatBrain reply");
 		} catch (GoogleJsonResponseException exception) {
 			logApiFailure("sending the hardcoded chat reply", exception);
 		} catch (IOException exception) {
