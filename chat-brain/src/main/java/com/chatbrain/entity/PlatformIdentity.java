@@ -43,10 +43,12 @@ public class PlatformIdentity {
 	private Platform platform;
 
 	@Column(name = "platform_user_id", nullable = false)
-	private String channelId;
+	private String platformUserId;
 
 	@Column(name = "visible_name")
-	private String visibleName;
+	private String displayName;
+
+	private String handle;
 
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
 	@JoinColumn(name = "user_id", nullable = false)
@@ -58,10 +60,16 @@ public class PlatformIdentity {
 	@Column(nullable = false)
 	private Instant updatedAt;
 
-	public PlatformIdentity(Platform platform, String channelId, String visibleName, User user) {
+	public PlatformIdentity(
+			Platform platform,
+			String platformUserId,
+			String handle,
+			String displayName,
+			User user) {
 		this.platform = platform;
-		this.channelId = channelId;
-		this.visibleName = visibleName;
+		this.platformUserId = platformUserId;
+		this.handle = handle;
+		this.displayName = displayName;
 		this.user = user;
 	}
 

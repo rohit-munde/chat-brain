@@ -1,6 +1,6 @@
 # YouTube Live Chat Setup
 
-This guide configures ChatBrain to read messages from an active livestream owned by the authenticated YouTube account. The integration is read-only: it does not reply to chat or write to YouTube.
+This guide configures ChatBrain to read messages from an active livestream owned by the authenticated YouTube account and send one hardcoded verification reply.
 
 ## 1. Create a Google Cloud project
 
@@ -24,10 +24,10 @@ No other Google API is required for live-chat reading.
 4. Keep the application in **Testing** while developing.
 5. Add the Google account that owns the YouTube channel under **Audience → Test users**.
 
-ChatBrain requests only this scope:
+ChatBrain requests this scope so it can read live chat and send the hardcoded reply:
 
 ```text
-https://www.googleapis.com/auth/youtube.readonly
+https://www.googleapis.com/auth/youtube.force-ssl
 ```
 
 ## 4. Create an OAuth Desktop client
@@ -113,7 +113,7 @@ During the first startup:
 1. ChatBrain reads `client-secret.json`.
 2. A browser opens the Google authorization page.
 3. Sign in using the account that owns the active broadcast.
-4. Select **Allow** for read-only YouTube access.
+4. Select **Allow** for YouTube access. The write-capable scope is required only for the hardcoded Day 1 reply.
 5. Google redirects the browser to ChatBrain's loopback receiver on port `8888`.
 6. ChatBrain stores the OAuth token and initializes the YouTube API client.
 7. After application startup, the adapter finds the active broadcast and begins reading live chat.
@@ -137,17 +137,20 @@ After typing `Hello ChatBrain` in live chat, expect the identity log:
 
 ```text
 Platform : YOUTUBE
-Channel ID : <stable YouTube channel ID>
-Visible Name : <exact author name displayed by YouTube>
-Message : Hello ChatBrain
-Timestamp : <message timestamp>
+Platform         : YOUTUBE
+Platform User ID : <stable YouTube channel ID>
+Handle           : null
+Display Name     : <exact author display name returned by YouTube>
+Message          : Hello ChatBrain
+Timestamp        : <message timestamp>
 ```
 
 ChatBrain keeps these YouTube values separate:
 
-- **Channel ID** is YouTube's permanent identifier for the author's channel and is the reliable identity key.
-- **Visible Name** is the exact value returned by the YouTube Live Chat API—the value YouTube displays beside the message. It may be a handle, nickname, channel name, or person's name. ChatBrain treats it as presentation data only and never derives or normalizes it.
-- **Real Name** belongs to ChatBrain's platform-independent user. It remains nullable and is never inferred automatically from the visible name.
+- **Platform User ID** is the platform-neutral identity key. For YouTube, it contains the permanent author channel ID returned by `authorDetails.channelId`.
+- **Handle** is a nullable public platform handle. YouTube Live Chat `authorDetails` does not expose one separately, so ChatBrain performs one cached `channels.list(part=snippet)` lookup per encountered channel. It accepts `snippet.customUrl` only when YouTube explicitly returns an `@...` value; otherwise the handle remains `null`.
+- **Display Name** uses the channel title from `channels.list` when available and falls back to the exact `authorDetails.displayName` value returned with the live-chat message. ChatBrain treats it as mutable presentation data and never parses it to manufacture a handle.
+- **Real Name** belongs to ChatBrain's platform-independent user. It remains nullable and is never inferred automatically from the display name.
 
 Real names may only be learned later through the Identity Resolver or Memory Engine when explicitly supported.
 
@@ -206,10 +209,10 @@ Stop ChatBrain, delete `data/tokens/`, and restart with `YOUTUBE_ENABLED=true` t
 - [ ] ChatBrain started with `YOUTUBE_ENABLED=true`
 - [ ] Browser authorization page opened
 - [ ] Correct channel owner account selected
-- [ ] Read-only permission granted
+- [ ] YouTube permission granted
 - [ ] Token created in the configured token directory
 - [ ] `Connected to active YouTube livestream chat` logged
-- [ ] `Hello ChatBrain` sent after the connected log
+- [ ] `hello bot` sent after the connected log
 - [ ] `PlatformMessage` details logged
 - [ ] Existing `ChatMessageListener` received `ChatMessageEvent`
-- [ ] No reply was posted to YouTube
+- [ ] `Hello from ChatBrain 👋` posted exactly once

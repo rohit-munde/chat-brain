@@ -9,7 +9,7 @@ import java.util.UUID;
 
 public interface PlatformIdentityRepository extends JpaRepository<PlatformIdentity, UUID> {
 
-	Optional<PlatformIdentity> findByPlatformAndChannelId(
+	Optional<PlatformIdentity> findByPlatformAndPlatformUserId(
 			Platform platform,
-			String channelId);
+			String platformUserId);
 }

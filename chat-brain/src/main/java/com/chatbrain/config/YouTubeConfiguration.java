@@ -70,7 +70,7 @@ public class YouTubeConfiguration {
 				GoogleNetHttpTransport.newTrustedTransport(),
 				JSON_FACTORY,
 				clientSecrets,
-				List.of(YouTubeScopes.YOUTUBE_READONLY))
+				List.of(YouTubeScopes.YOUTUBE_FORCE_SSL))
 				.setDataStoreFactory(new FileDataStoreFactory(tokensDirectory.toFile()))
 				.setAccessType("offline")
 				.build();

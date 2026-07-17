@@ -53,21 +53,22 @@ class RepositoryPersistenceTests {
 		User user = User.create();
 		user.setRelationshipScore(1);
 		User savedUser = userRepository.saveAndFlush(user);
-		String channelId = "repository-test-" + UUID.randomUUID();
+		String platformUserId = "repository-test-" + UUID.randomUUID();
 		PlatformIdentity identity = new PlatformIdentity(
 				Platform.YOUTUBE,
-				channelId,
+				platformUserId,
+				"@test-viewer",
 				"Test Viewer",
 				savedUser);
 		platformIdentityRepository.saveAndFlush(identity);
 		entityManager.clear();
 
-		assertThat(platformIdentityRepository.findByPlatformAndChannelId(
+		assertThat(platformIdentityRepository.findByPlatformAndPlatformUserId(
 				Platform.YOUTUBE,
-				channelId))
+				platformUserId))
 				.isPresent()
 				.get()
-				.extracting(PlatformIdentity::getVisibleName)
+				.extracting(PlatformIdentity::getDisplayName)
 				.isEqualTo("Test Viewer");
 		assertThat(userRepository.findById(savedUser.getId())).isPresent();
 	}

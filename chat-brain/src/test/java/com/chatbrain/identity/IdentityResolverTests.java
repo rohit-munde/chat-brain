@@ -42,7 +42,7 @@ class IdentityResolverTests {
 	@Test
 	void createsUserAndPlatformIdentityForFirstMessage() {
 		ChatMessageEvent message = message("First Name");
-		when(platformIdentityRepository.findByPlatformAndChannelId(
+		when(platformIdentityRepository.findByPlatformAndPlatformUserId(
 				Platform.YOUTUBE,
 				"channel-123"))
 				.thenReturn(Optional.empty());
@@ -60,8 +60,9 @@ class IdentityResolverTests {
 				ArgumentCaptor.forClass(PlatformIdentity.class);
 		verify(platformIdentityRepository).save(identityCaptor.capture());
 		assertThat(identityCaptor.getValue().getPlatform()).isEqualTo(Platform.YOUTUBE);
-		assertThat(identityCaptor.getValue().getChannelId()).isEqualTo("channel-123");
-		assertThat(identityCaptor.getValue().getVisibleName()).isEqualTo("First Name");
+		assertThat(identityCaptor.getValue().getPlatformUserId()).isEqualTo("channel-123");
+		assertThat(identityCaptor.getValue().getHandle()).isEqualTo("@first-name");
+		assertThat(identityCaptor.getValue().getDisplayName()).isEqualTo("First Name");
 		assertThat(resolvedUser.getRealName()).isNull();
 		verify(eventPublisher).publishEvent(any(UserResolvedEvent.class));
 	}
@@ -73,10 +74,11 @@ class IdentityResolverTests {
 		PlatformIdentity existingIdentity = new PlatformIdentity(
 				Platform.YOUTUBE,
 				"channel-123",
+				"@old-name",
 				"Old Name",
 				existingUser);
 		ChatMessageEvent message = message("Updated Name");
-		when(platformIdentityRepository.findByPlatformAndChannelId(
+		when(platformIdentityRepository.findByPlatformAndPlatformUserId(
 				Platform.YOUTUBE,
 				"channel-123"))
 				.thenReturn(Optional.of(existingIdentity));
@@ -87,17 +89,19 @@ class IdentityResolverTests {
 		assertThat(resolvedUser).isSameAs(existingUser);
 		assertThat(resolvedUser.getRelationshipScore()).isEqualTo(2);
 		assertThat(resolvedUser.getLastSeen()).isEqualTo(message.getTimestamp());
-		assertThat(existingIdentity.getVisibleName()).isEqualTo("Updated Name");
+		assertThat(existingIdentity.getHandle()).isEqualTo("@updated-name");
+		assertThat(existingIdentity.getDisplayName()).isEqualTo("Updated Name");
 		assertThat(resolvedUser.getRealName()).isNull();
 		verify(userRepository, never()).save(any(User.class));
 		verify(eventPublisher).publishEvent(any(UserResolvedEvent.class));
 	}
 
-	private ChatMessageEvent message(String visibleName) {
+	private ChatMessageEvent message(String displayName) {
 		return new ChatMessageEvent(
 				"YOUTUBE",
 				"channel-123",
-				visibleName,
+				"@" + displayName.toLowerCase().replace(' ', '-'),
+				displayName,
 				"Hello ChatBrain");
 	}
 }

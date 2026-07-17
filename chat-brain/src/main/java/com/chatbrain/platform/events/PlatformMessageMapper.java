@@ -10,8 +10,9 @@ public class PlatformMessageMapper {
 	public ChatMessageEvent toChatMessageEvent(PlatformMessage message) {
 		return new ChatMessageEvent(
 				message.platform().name(),
-				message.channelId(),
-				message.visibleName(),
+				message.platformUserId(),
+				message.handle(),
+				message.displayName(),
 				message.message());
 	}
 }

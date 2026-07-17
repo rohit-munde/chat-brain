@@ -34,12 +34,12 @@ public class IdentityResolver {
 	@Transactional
 	public User resolve(ChatMessageEvent event) {
 		Platform platform = parsePlatform(event.getPlatform());
-		String channelId = requireChannelId(event);
+		String platformUserId = requirePlatformUserId(event);
 
 		PlatformIdentity identity = platformIdentityRepository
-				.findByPlatformAndChannelId(platform, channelId)
+				.findByPlatformAndPlatformUserId(platform, platformUserId)
 				.map(existingIdentity -> updateExistingIdentity(existingIdentity, event))
-				.orElseGet(() -> createIdentity(platform, channelId, event));
+				.orElseGet(() -> createIdentity(platform, platformUserId, event));
 
 		eventPublisher.publishEvent(new UserResolvedEvent(identity.getUser(), identity, event));
 		return identity.getUser();
@@ -51,13 +51,14 @@ public class IdentityResolver {
 		User user = identity.getUser();
 		user.setLastSeen(event.getTimestamp());
 		user.setRelationshipScore(currentScore(user) + 1);
-		identity.setVisibleName(event.getVisibleName());
+		identity.setHandle(event.getHandle());
+		identity.setDisplayName(event.getDisplayName());
 		return platformIdentityRepository.save(identity);
 	}
 
 	private PlatformIdentity createIdentity(
 			Platform platform,
-			String channelId,
+			String platformUserId,
 			ChatMessageEvent event) {
 		User user = User.create();
 		user.setRelationshipScore(1);
@@ -67,8 +68,9 @@ public class IdentityResolver {
 
 		PlatformIdentity identity = new PlatformIdentity(
 				platform,
-				channelId,
-				event.getVisibleName(),
+				platformUserId,
+				event.getHandle(),
+				event.getDisplayName(),
 				savedUser);
 		return platformIdentityRepository.save(identity);
 	}
@@ -81,11 +83,11 @@ public class IdentityResolver {
 		}
 	}
 
-	private String requireChannelId(ChatMessageEvent event) {
-		if (event.getChannelId() == null || event.getChannelId().isBlank()) {
-			throw new IllegalArgumentException("ChatMessageEvent channelId must not be blank");
+	private String requirePlatformUserId(ChatMessageEvent event) {
+		if (event.getPlatformUserId() == null || event.getPlatformUserId().isBlank()) {
+			throw new IllegalArgumentException("ChatMessageEvent platformUserId must not be blank");
 		}
-		return event.getChannelId();
+		return event.getPlatformUserId();
 	}
 
 	private int currentScore(User user) {

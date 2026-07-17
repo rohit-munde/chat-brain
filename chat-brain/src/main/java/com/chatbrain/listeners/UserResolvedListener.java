@@ -15,15 +15,17 @@ public class UserResolvedListener {
 	public void onUserResolved(UserResolvedEvent event) {
 		LOGGER.info("""
 				----------------------------------
-				Platform : {}
-				Channel ID : {}
-				Visible Name : {}
-				Message : {}
-				Timestamp : {}
+				Platform         : {}
+				Platform User ID : {}
+				Handle           : {}
+				Display Name     : {}
+				Message          : {}
+				Timestamp        : {}
 				----------------------------------""",
 				event.getPlatformIdentity().getPlatform(),
-				event.getPlatformIdentity().getChannelId(),
-				event.getPlatformIdentity().getVisibleName(),
+				event.getPlatformIdentity().getPlatformUserId(),
+				event.getPlatformIdentity().getHandle(),
+				event.getPlatformIdentity().getDisplayName(),
 				event.getOriginalEvent().getMessage(),
 				event.getOriginalEvent().getTimestamp());
 	}

@@ -15,15 +15,17 @@ public class ChatMessageListener {
 	public void onChatMessage(ChatMessageEvent event) {
 		LOGGER.info("""
 				----------------------------------
-				Platform : {}
-				Channel ID : {}
-				Visible Name : {}
-				Message : {}
-				Timestamp : {}
+				Platform         : {}
+				Platform User ID : {}
+				Handle           : {}
+				Display Name     : {}
+				Message          : {}
+				Timestamp        : {}
 				----------------------------------""",
 				event.getPlatform(),
-				event.getChannelId(),
-				event.getVisibleName(),
+				event.getPlatformUserId(),
+				event.getHandle(),
+				event.getDisplayName(),
 				event.getMessage(),
 				event.getTimestamp());
 	}

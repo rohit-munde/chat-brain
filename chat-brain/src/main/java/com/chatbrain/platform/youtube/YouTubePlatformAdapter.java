@@ -7,12 +7,14 @@ import com.chatbrain.platform.PlatformMessage;
 import com.chatbrain.platform.events.PlatformMessageMapper;
 import com.google.api.client.googleapis.json.GoogleJsonResponseException;
 import com.google.api.services.youtube.YouTube;
+import com.google.api.services.youtube.model.Channel;
 import com.google.api.services.youtube.model.LiveBroadcast;
 import com.google.api.services.youtube.model.LiveBroadcastListResponse;
 import com.google.api.services.youtube.model.LiveChatMessage;
 import com.google.api.services.youtube.model.LiveChatMessageAuthorDetails;
 import com.google.api.services.youtube.model.LiveChatMessageListResponse;
 import com.google.api.services.youtube.model.LiveChatMessageSnippet;
+import com.google.api.services.youtube.model.LiveChatTextMessageDetails;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,6 +28,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -35,11 +38,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public final class YouTubePlatformAdapter implements PlatformAdapter {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(YouTubePlatformAdapter.class);
+	private static final String REPLY_TRIGGER = "hello bot";
+	private static final String REPLY_MESSAGE = "Hello Rupa, naha liya???";
 	private static final long RETRY_DELAY_MILLIS = 5_000L;
 
 	private final YouTube youtube;
 	private final PlatformMessageMapper messageMapper;
 	private final ApplicationEventPublisher eventPublisher;
+	private final ConcurrentHashMap<String, YouTubeAuthorIdentity> authorIdentityCache =
+			new ConcurrentHashMap<>();
 	private final AtomicBoolean running = new AtomicBoolean(false);
 	private ExecutorService pollingExecutor;
 
@@ -148,7 +155,7 @@ public final class YouTubePlatformAdapter implements PlatformAdapter {
 			try {
 				LiveChatMessageListResponse response = requestMessages(liveChatId, nextPageToken);
 				if (!initialPage) {
-					publishMessages(response);
+					publishMessages(liveChatId, response);
 				}
 				initialPage = false;
 				nextPageToken = response.getNextPageToken();
@@ -171,40 +178,48 @@ public final class YouTubePlatformAdapter implements PlatformAdapter {
 				.execute();
 	}
 
-	private void publishMessages(LiveChatMessageListResponse response) {
+	private void publishMessages(String liveChatId, LiveChatMessageListResponse response) {
 		Optional.ofNullable(response.getItems())
 				.orElseGet(List::of)
-				.forEach(this::publishMessage);
+				.forEach(message -> publishMessage(liveChatId, message));
 	}
 
-	private void publishMessage(LiveChatMessage liveChatMessage) {
+	private void publishMessage(String liveChatId, LiveChatMessage liveChatMessage) {
 		LiveChatMessageSnippet snippet = liveChatMessage.getSnippet();
 		LiveChatMessageAuthorDetails author = liveChatMessage.getAuthorDetails();
-		if (snippet == null || author == null || snippet.getDisplayMessage() == null) {
+		if (snippet == null
+				|| author == null
+				|| author.getChannelId() == null
+				|| author.getChannelId().isBlank()
+				|| snippet.getDisplayMessage() == null) {
 			return;
 		}
 
 		Instant timestamp = snippet.getPublishedAt() == null
 				? Instant.now()
 				: Instant.ofEpochMilli(snippet.getPublishedAt().getValue());
+		YouTubeAuthorIdentity authorIdentity = resolveAuthorIdentity(author);
 		PlatformMessage platformMessage = new PlatformMessage(
 				Platform.YOUTUBE,
 				author.getChannelId(),
-				author.getDisplayName(),
+				authorIdentity.handle(),
+				authorIdentity.displayName(),
 				snippet.getDisplayMessage(),
 				timestamp);
 
 		LOGGER.info("""
 				----------------------------------
-				Platform : {}
-				Channel ID : {}
-				Visible Name : {}
-				Message : {}
-				Timestamp : {}
+				Platform         : {}
+				Platform User ID : {}
+				Handle           : {}
+				Display Name     : {}
+				Message          : {}
+				Timestamp        : {}
 				----------------------------------""",
 				platformMessage.platform(),
-				platformMessage.channelId(),
-				platformMessage.visibleName(),
+				platformMessage.platformUserId(),
+				platformMessage.handle(),
+				platformMessage.displayName(),
 				platformMessage.message(),
 				platformMessage.timestamp());
 
@@ -212,8 +227,76 @@ public final class YouTubePlatformAdapter implements PlatformAdapter {
 			ChatMessageEvent event = messageMapper.toChatMessageEvent(platformMessage);
 			eventPublisher.publishEvent(event);
 		} catch (RuntimeException exception) {
-			LOGGER.error("Failed to publish YouTube chat message event for channel {}",
-					platformMessage.channelId(), exception);
+			LOGGER.error("Failed to publish YouTube chat message event for platform user {}",
+					platformMessage.platformUserId(), exception);
+		}
+
+		if (REPLY_TRIGGER.equalsIgnoreCase(platformMessage.message().trim())) {
+			sendReply(liveChatId);
+		}
+	}
+
+	private YouTubeAuthorIdentity resolveAuthorIdentity(LiveChatMessageAuthorDetails author) {
+		YouTubeAuthorIdentity cachedIdentity = authorIdentityCache.get(author.getChannelId());
+		if (cachedIdentity != null) {
+			return cachedIdentity;
+		}
+
+		YouTubeAuthorIdentity resolvedIdentity = fetchAuthorIdentity(author);
+		authorIdentityCache.put(author.getChannelId(), resolvedIdentity);
+		return resolvedIdentity;
+	}
+
+	private YouTubeAuthorIdentity fetchAuthorIdentity(LiveChatMessageAuthorDetails author) {
+		try {
+			List<Channel> channels = Optional.ofNullable(youtube.channels()
+					.list(List.of("snippet"))
+					.setId(List.of(author.getChannelId()))
+					.execute()
+					.getItems())
+					.orElseGet(List::of);
+			Channel channel = channels.stream()
+					.findFirst()
+					.orElse(null);
+			if (channel == null || channel.getSnippet() == null) {
+				return fallbackAuthorIdentity(author);
+			}
+
+			String customUrl = channel.getSnippet().getCustomUrl();
+			String handle = customUrl != null && customUrl.startsWith("@") ? customUrl : null;
+			String displayName = channel.getSnippet().getTitle() == null
+					? author.getDisplayName()
+					: channel.getSnippet().getTitle();
+			return new YouTubeAuthorIdentity(handle, displayName);
+		} catch (IOException exception) {
+			LOGGER.warn("Unable to enrich YouTube identity for platform user {}; using live-chat author data: {}",
+					author.getChannelId(), exception.getMessage());
+			return fallbackAuthorIdentity(author);
+		}
+	}
+
+	private YouTubeAuthorIdentity fallbackAuthorIdentity(LiveChatMessageAuthorDetails author) {
+		return new YouTubeAuthorIdentity(null, author.getDisplayName());
+	}
+
+	private void sendReply(String liveChatId) {
+		LiveChatTextMessageDetails textMessageDetails = new LiveChatTextMessageDetails()
+				.setMessageText(REPLY_MESSAGE);
+		LiveChatMessageSnippet snippet = new LiveChatMessageSnippet()
+				.setLiveChatId(liveChatId)
+				.setType("textMessageEvent")
+				.setTextMessageDetails(textMessageDetails);
+		LiveChatMessage reply = new LiveChatMessage().setSnippet(snippet);
+
+		try {
+			youtube.liveChatMessages()
+					.insert(List.of("snippet"), reply)
+					.execute();
+			LOGGER.info("Sent hardcoded ChatBrain reply");
+		} catch (GoogleJsonResponseException exception) {
+			logApiFailure("sending the hardcoded chat reply", exception);
+		} catch (IOException exception) {
+			logNetworkFailure("sending the hardcoded chat reply", exception);
 		}
 	}
 
@@ -251,5 +334,8 @@ public final class YouTubePlatformAdapter implements PlatformAdapter {
 	private void logNetworkFailure(String operation, IOException exception) {
 		LOGGER.warn("Temporary network failure while {}; polling will continue: {}",
 				operation, exception.getMessage());
+	}
+
+	private record YouTubeAuthorIdentity(String handle, String displayName) {
 	}
 }
