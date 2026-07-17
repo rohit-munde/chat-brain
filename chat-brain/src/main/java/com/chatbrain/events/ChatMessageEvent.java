@@ -3,7 +3,7 @@ package com.chatbrain.events;
 import java.time.Instant;
 import java.util.Objects;
 
-public final class ChatMessageEvent extends BaseEvent {
+public final class ChatMessageEvent extends BaseEvent implements StreamEvent {
 
 	private final String platform;
 	private final String platformUserId;

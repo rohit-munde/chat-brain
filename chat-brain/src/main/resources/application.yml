@@ -3,6 +3,9 @@ spring:
     import: optional:file:.env[.properties]
 
 communitybrain:
+  events:
+    subscribers:
+      enabled: ${COMMUNITYBRAIN_SUBSCRIBER_EVENTS_ENABLED:true}
   ai:
     enabled: ${COMMUNITYBRAIN_AI_ENABLED:true}
     provider: ${COMMUNITYBRAIN_AI_PROVIDER:fake}
