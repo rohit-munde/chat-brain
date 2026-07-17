@@ -5,7 +5,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class FakeLLMClient implements LLMClient {
 
-	private static final String MESSAGE_PREFIX = "Message:\n";
+	private static final String MESSAGE_PREFIX = "Current Message:\n";
 	private static final String RESPONSE_INSTRUCTION = "\n\nRespond as the AI co-host of the livestream.";
 
 	@Override

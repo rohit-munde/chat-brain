@@ -9,6 +9,8 @@ import com.chatbrain.repository.PlatformIdentityRepository;
 import com.chatbrain.repository.UserRepository;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.event.EventListener;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,6 +33,7 @@ public class IdentityResolver {
 	}
 
 	@EventListener
+	@Order(Ordered.HIGHEST_PRECEDENCE)
 	@Transactional
 	public User resolve(ChatMessageEvent event) {
 		Platform platform = parsePlatform(event.getPlatform());
