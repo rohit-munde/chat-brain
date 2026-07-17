@@ -3,6 +3,7 @@ package com.chatbrain.ai;
 import com.chatbrain.events.ChatMessageEvent;
 import com.chatbrain.memory.Memory;
 import com.chatbrain.memory.MemoryRetriever;
+import com.chatbrain.memory.MemoryLearningService;
 import com.chatbrain.platform.youtube.YouTubePublisher;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
@@ -14,6 +15,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doThrow;
 
 class AIOrchestratorTests {
 
@@ -25,6 +27,7 @@ class AIOrchestratorTests {
 		PromptBuilder promptBuilder = mock(PromptBuilder.class);
 		LLMClient llmClient = mock(LLMClient.class);
 		YouTubePublisher youtubePublisher = mock(YouTubePublisher.class);
+		MemoryLearningService memoryLearningService = mock(MemoryLearningService.class);
 		ChatMessageEvent event = discordMessage();
 		List<Memory> memories = List.of(memory("PREFERENCE", "Likes Java"));
 		when(memoryRetriever.retrieve(event)).thenReturn(memories);
@@ -34,15 +37,45 @@ class AIOrchestratorTests {
 				memoryRetriever,
 				promptBuilder,
 				llmClient,
-				youtubePublisher);
+				youtubePublisher,
+				memoryLearningService);
 
 		orchestrator.process(event);
 
-		InOrder workflow = inOrder(memoryRetriever, promptBuilder, llmClient, youtubePublisher);
+		InOrder workflow = inOrder(
+				memoryRetriever, promptBuilder, llmClient, youtubePublisher, memoryLearningService);
 		workflow.verify(memoryRetriever).retrieve(event);
 		workflow.verify(promptBuilder).build(event, memories);
 		workflow.verify(llmClient).generateReply("prompt");
 		workflow.verify(youtubePublisher).publish("AI response");
+		workflow.verify(memoryLearningService).learn(event, "AI response");
+	}
+
+	@Test
+	void memoryLearningFailureDoesNotInterruptPublishedReply() {
+		MemoryRetriever memoryRetriever = mock(MemoryRetriever.class);
+		PromptBuilder promptBuilder = mock(PromptBuilder.class);
+		LLMClient llmClient = mock(LLMClient.class);
+		YouTubePublisher youtubePublisher = mock(YouTubePublisher.class);
+		MemoryLearningService memoryLearningService = mock(MemoryLearningService.class);
+		ChatMessageEvent event = discordMessage();
+		when(memoryRetriever.retrieve(event)).thenReturn(List.of());
+		when(promptBuilder.build(event, List.of())).thenReturn("prompt");
+		when(llmClient.generateReply("prompt")).thenReturn("AI response");
+		doThrow(new IllegalStateException("database unavailable"))
+				.when(memoryLearningService).learn(event, "AI response");
+		AIOrchestrator orchestrator = new AIOrchestrator(
+				memoryRetriever,
+				promptBuilder,
+				llmClient,
+				youtubePublisher,
+				memoryLearningService);
+
+		orchestrator.process(event);
+
+		InOrder workflow = inOrder(youtubePublisher, memoryLearningService);
+		workflow.verify(youtubePublisher).publish("AI response");
+		workflow.verify(memoryLearningService).learn(event, "AI response");
 	}
 
 	@Test

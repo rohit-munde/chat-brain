@@ -50,6 +50,14 @@ public class MemoryPersistenceService {
 				.toList();
 	}
 
+	@Transactional(readOnly = true)
+	public boolean exists(User user, MemoryCategory category, String content) {
+		return memoryRepository.existsByUserIdAndCategoryAndContentIgnoreCase(
+				requirePersistedUser(user),
+				Objects.requireNonNull(category, "category must not be null"),
+				requireContent(content).trim());
+	}
+
 	@Transactional
 	public Memory update(
 			User user,
@@ -83,7 +91,7 @@ public class MemoryPersistenceService {
 		if (content == null || content.isBlank()) {
 			throw new IllegalArgumentException("content must not be blank");
 		}
-		return content;
+		return content.trim();
 	}
 
 	private Memory toMemory(UserMemory entity) {

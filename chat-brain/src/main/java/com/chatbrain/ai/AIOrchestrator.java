@@ -2,6 +2,7 @@ package com.chatbrain.ai;
 
 import com.chatbrain.events.ChatMessageEvent;
 import com.chatbrain.memory.Memory;
+import com.chatbrain.memory.MemoryLearningService;
 import com.chatbrain.memory.MemoryRetriever;
 import com.chatbrain.platform.youtube.YouTubePublisher;
 import org.slf4j.Logger;
@@ -20,16 +21,19 @@ public class AIOrchestrator {
 	private final PromptBuilder promptBuilder;
 	private final LLMClient llmClient;
 	private final YouTubePublisher youtubePublisher;
+	private final MemoryLearningService memoryLearningService;
 
 	public AIOrchestrator(
 			MemoryRetriever memoryRetriever,
 			PromptBuilder promptBuilder,
 			LLMClient llmClient,
-			YouTubePublisher youtubePublisher) {
+			YouTubePublisher youtubePublisher,
+			MemoryLearningService memoryLearningService) {
 		this.memoryRetriever = memoryRetriever;
 		this.promptBuilder = promptBuilder;
 		this.llmClient = llmClient;
 		this.youtubePublisher = youtubePublisher;
+		this.memoryLearningService = memoryLearningService;
 	}
 
 	public void process(ChatMessageEvent event) {
@@ -44,5 +48,11 @@ public class AIOrchestrator {
 		LOGGER.info("Calling LLM");
 		String response = llmClient.generateReply(prompt);
 		youtubePublisher.publish(response);
+		try {
+			memoryLearningService.learn(event, response);
+		} catch (RuntimeException exception) {
+			LOGGER.error("Memory learning failed after reply publication: {}",
+					exception.getMessage(), exception);
+		}
 	}
 }

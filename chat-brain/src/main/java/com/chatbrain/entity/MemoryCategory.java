@@ -1,6 +1,11 @@
 package com.chatbrain.entity;
 
 public enum MemoryCategory {
+	IDENTITY,
+	TECHNOLOGY,
+	PROJECT,
+	LOCATION,
+	GENERAL,
 	REAL_NAME,
 	ACHIEVEMENT,
 	CAREER,

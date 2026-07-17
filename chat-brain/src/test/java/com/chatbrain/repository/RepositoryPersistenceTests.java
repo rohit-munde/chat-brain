@@ -143,6 +143,8 @@ class RepositoryPersistenceTests {
 				MemorySource.USER);
 
 		assertThat(persisted.id()).isNotNull();
+		assertThat(memoryPersistenceService.exists(
+				owner, MemoryCategory.INTEREST, "uses spring boot")).isTrue();
 		assertThat(memoryPersistenceService.retrieveRecent(owner))
 				.extracting(Memory::content)
 				.contains("Uses Spring Boot");
