@@ -19,9 +19,13 @@ public class IdentityAwareMemoryRetriever implements MemoryRetriever {
 	private static final Logger LOGGER = LoggerFactory.getLogger(IdentityAwareMemoryRetriever.class);
 
 	private final PlatformIdentityRepository platformIdentityRepository;
+	private final MemoryPersistenceService memoryPersistenceService;
 
-	public IdentityAwareMemoryRetriever(PlatformIdentityRepository platformIdentityRepository) {
+	public IdentityAwareMemoryRetriever(
+			PlatformIdentityRepository platformIdentityRepository,
+			MemoryPersistenceService memoryPersistenceService) {
 		this.platformIdentityRepository = platformIdentityRepository;
+		this.memoryPersistenceService = memoryPersistenceService;
 	}
 
 	@Override
@@ -39,10 +43,9 @@ public class IdentityAwareMemoryRetriever implements MemoryRetriever {
 		}
 
 		LOGGER.debug("Resolved internal user {} for memory retrieval", identity.get().getUser().getId());
-		// UserMemory is not associated with User yet. Returning global memories here would
-		// expose one user's context to another, so retrieval remains empty until that
-		// persistence relationship is introduced.
-		return List.of();
+		List<Memory> memories = memoryPersistenceService.retrieveRecent(identity.get().getUser());
+		LOGGER.info("Found {} memories", memories.size());
+		return memories;
 	}
 
 	private Platform parsePlatform(String value) {

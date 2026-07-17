@@ -6,23 +6,28 @@ import com.chatbrain.entity.MemorySource;
 import com.chatbrain.entity.PlatformIdentity;
 import com.chatbrain.entity.User;
 import com.chatbrain.entity.UserMemory;
+import com.chatbrain.memory.Memory;
+import com.chatbrain.memory.MemoryPersistenceService;
 import com.chatbrain.platform.Platform;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
+import org.springframework.context.annotation.Import;
 
 import java.lang.reflect.InvocationTargetException;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @DataJpaTest(properties = {
 		"spring.autoconfigure.exclude=",
 		"spring.jpa.hibernate.ddl-auto=update"
 })
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+@Import(MemoryPersistenceService.class)
 class RepositoryPersistenceTests {
 
 	@Autowired
@@ -36,6 +41,9 @@ class RepositoryPersistenceTests {
 
 	@Autowired
 	private UserMemoryRepository userMemoryRepository;
+
+	@Autowired
+	private MemoryPersistenceService memoryPersistenceService;
 
 	@Autowired
 	private TestEntityManager entityManager;
@@ -88,23 +96,77 @@ class RepositoryPersistenceTests {
 	}
 
 	@Test
-	void userMemoryRepositorySavesAndRetrievesMemory() {
-		UserMemory memory = instantiate(UserMemory.class);
-		String content = "repository-test-" + UUID.randomUUID();
-		memory.setCategory(MemoryCategory.ACHIEVEMENT);
-		memory.setContent(content);
-		memory.setImportance(1);
-		memory.setSource(MemorySource.USER);
+	void userMemoryRepositoryKeepsMemoriesScopedToTheirOwner() {
+		User firstUser = userRepository.saveAndFlush(User.create());
+		User secondUser = userRepository.saveAndFlush(User.create());
+		String firstContent = "first-user-memory-" + UUID.randomUUID();
+		String secondContent = "second-user-memory-" + UUID.randomUUID();
+		UserMemory firstMemory = new UserMemory(
+				firstUser,
+				MemoryCategory.ACHIEVEMENT,
+				firstContent,
+				1,
+				MemorySource.USER);
+		UserMemory secondMemory = new UserMemory(
+				secondUser,
+				MemoryCategory.PREFERENCE,
+				secondContent,
+				1,
+				MemorySource.USER);
 
-		userMemoryRepository.saveAndFlush(memory);
+		userMemoryRepository.saveAndFlush(firstMemory);
+		userMemoryRepository.saveAndFlush(secondMemory);
 		entityManager.clear();
 
-		assertThat(userMemoryRepository.findAllByCategory(MemoryCategory.ACHIEVEMENT))
+		assertThat(userMemoryRepository.findTop5ByUserIdOrderByCreatedAtDesc(firstUser.getId()))
 				.extracting(UserMemory::getContent)
-				.contains(content);
-		assertThat(userMemoryRepository.findAllByOrderByCreatedAtDesc())
-				.extracting(UserMemory::getId)
-				.contains(memory.getId());
+				.containsExactly(firstContent)
+				.doesNotContain(secondContent);
+		assertThat(userMemoryRepository.findTop5ByUserIdOrderByCreatedAtDesc(secondUser.getId()))
+				.extracting(UserMemory::getContent)
+				.containsExactly(secondContent)
+				.doesNotContain(firstContent);
+		assertThat(userMemoryRepository.findByIdAndUserId(
+				firstMemory.getId(), secondUser.getId())).isEmpty();
+	}
+
+	@Test
+	void memoryPersistenceServicePersistsRetrievesAndUpdatesOwnedMemory() {
+		User owner = userRepository.saveAndFlush(User.create());
+		User differentUser = userRepository.saveAndFlush(User.create());
+
+		Memory persisted = memoryPersistenceService.persist(
+				owner,
+				MemoryCategory.INTEREST,
+				"Uses Spring Boot",
+				2,
+				MemorySource.USER);
+
+		assertThat(persisted.id()).isNotNull();
+		assertThat(memoryPersistenceService.retrieveRecent(owner))
+				.extracting(Memory::content)
+				.contains("Uses Spring Boot");
+		assertThat(memoryPersistenceService.retrieveRecent(differentUser)).isEmpty();
+
+		Memory updated = memoryPersistenceService.update(
+				owner,
+				persisted.id(),
+				MemoryCategory.PREFERENCE,
+				"Prefers Spring Boot",
+				3,
+				MemorySource.USER);
+		assertThat(updated.content()).isEqualTo("Prefers Spring Boot");
+		assertThat(memoryPersistenceService.retrieveRecent(owner))
+				.extracting(Memory::content)
+				.containsExactly("Prefers Spring Boot");
+		assertThatThrownBy(() -> memoryPersistenceService.update(
+				differentUser,
+				persisted.id(),
+				MemoryCategory.OTHER,
+				"Not allowed",
+				1,
+				MemorySource.USER))
+				.isInstanceOf(IllegalArgumentException.class);
 	}
 
 	private static <T> T instantiate(Class<T> entityType) {
