@@ -1,8 +1,13 @@
 package com.chatbrain.ai;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 @Component
+@ConditionalOnProperty(
+		name = "communitybrain.ai.provider",
+		havingValue = "fake",
+		matchIfMissing = true)
 public class FakeLLMClient implements LLMClient {
 
 	private static final String MESSAGE_PREFIX = "Current Message:\n";

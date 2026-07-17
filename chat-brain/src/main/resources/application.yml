@@ -5,6 +5,12 @@ spring:
 communitybrain:
   ai:
     enabled: ${COMMUNITYBRAIN_AI_ENABLED:true}
+    provider: ${COMMUNITYBRAIN_AI_PROVIDER:fake}
+    openai:
+      api-key: ${OPENAI_API_KEY:}
+      model: ${OPENAI_MODEL:gpt-5.5}
+      connect-timeout: ${OPENAI_CONNECT_TIMEOUT:10s}
+      read-timeout: ${OPENAI_READ_TIMEOUT:60s}
 
 chatbrain:
   discord:
