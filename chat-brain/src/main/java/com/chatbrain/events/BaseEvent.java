@@ -11,8 +11,12 @@ public abstract class BaseEvent {
 	private final EventType eventType;
 
 	protected BaseEvent(EventType eventType) {
+		this(eventType, Instant.now());
+	}
+
+	protected BaseEvent(EventType eventType, Instant timestamp) {
 		this.eventId = UUID.randomUUID();
-		this.timestamp = Instant.now();
+		this.timestamp = Objects.requireNonNull(timestamp, "timestamp must not be null");
 		this.eventType = Objects.requireNonNull(eventType, "eventType must not be null");
 	}
 

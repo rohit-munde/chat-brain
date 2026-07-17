@@ -4,7 +4,6 @@ import com.chatbrain.events.ChatMessageEvent;
 import com.chatbrain.platform.Platform;
 import com.chatbrain.platform.PlatformAdapter;
 import com.chatbrain.platform.PlatformMessage;
-import com.chatbrain.platform.PlatformMessageSender;
 import com.chatbrain.platform.events.PlatformMessageMapper;
 import com.google.api.client.googleapis.json.GoogleJsonResponseException;
 import com.google.api.services.youtube.YouTube;
@@ -13,7 +12,6 @@ import com.google.api.services.youtube.model.LiveChatMessage;
 import com.google.api.services.youtube.model.LiveChatMessageAuthorDetails;
 import com.google.api.services.youtube.model.LiveChatMessageListResponse;
 import com.google.api.services.youtube.model.LiveChatMessageSnippet;
-import com.google.api.services.youtube.model.LiveChatTextMessageDetails;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,7 +33,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 @Component
 @ConditionalOnProperty(name = "chatbrain.youtube.enabled", havingValue = "true")
-public final class YouTubePlatformAdapter implements PlatformAdapter, PlatformMessageSender {
+public final class YouTubePlatformAdapter implements PlatformAdapter {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(YouTubePlatformAdapter.class);
 	private static final long RETRY_DELAY_MILLIS = 5_000L;
@@ -46,21 +44,23 @@ public final class YouTubePlatformAdapter implements PlatformAdapter, PlatformMe
 
 	private final YouTube youtube;
 	private final LiveChatSessionManager sessionManager;
+	private final YouTubePublisher youtubePublisher;
 	private final PlatformMessageMapper messageMapper;
 	private final ApplicationEventPublisher eventPublisher;
 	private final ConcurrentHashMap<String, YouTubeAuthorIdentity> authorIdentityCache =
 			new ConcurrentHashMap<>();
 	private final AtomicBoolean running = new AtomicBoolean(false);
-	private volatile String activeLiveChatId;
 	private ExecutorService pollingExecutor;
 
 	public YouTubePlatformAdapter(
 			YouTube youtube,
 			LiveChatSessionManager sessionManager,
+			YouTubePublisher youtubePublisher,
 			PlatformMessageMapper messageMapper,
 			ApplicationEventPublisher eventPublisher) {
 		this.youtube = youtube;
 		this.sessionManager = sessionManager;
+		this.youtubePublisher = youtubePublisher;
 		this.messageMapper = messageMapper;
 		this.eventPublisher = eventPublisher;
 	}
@@ -101,7 +101,6 @@ public final class YouTubePlatformAdapter implements PlatformAdapter, PlatformMe
 			pollingExecutor.shutdownNow();
 			pollingExecutor = null;
 		}
-		activeLiveChatId = null;
 	}
 
 	private void pollActiveLiveChat() {
@@ -114,12 +113,7 @@ public final class YouTubePlatformAdapter implements PlatformAdapter, PlatformMe
 				}
 
 				LOGGER.info("Connected to active YouTube livestream chat");
-				activeLiveChatId = session.get().liveChatId();
-				try {
-					pollMessages(session.get());
-				} finally {
-					activeLiveChatId = null;
-				}
+				pollMessages(session.get());
 				if (shouldContinuePolling()) {
 					waitBeforeRetry();
 				}
@@ -197,6 +191,11 @@ public final class YouTubePlatformAdapter implements PlatformAdapter, PlatformMe
 	}
 
 	private void publishMessage(LiveChatMessage liveChatMessage) {
+		if (youtubePublisher.isCommunityBrainMessage(liveChatMessage.getId())) {
+			LOGGER.debug("Ignoring CommunityBrain's own YouTube message {}", liveChatMessage.getId());
+			return;
+		}
+
 		LiveChatMessageSnippet snippet = liveChatMessage.getSnippet();
 		LiveChatMessageAuthorDetails author = liveChatMessage.getAuthorDetails();
 		if (snippet == null
@@ -285,34 +284,6 @@ public final class YouTubePlatformAdapter implements PlatformAdapter, PlatformMe
 
 	private YouTubeAuthorIdentity fallbackAuthorIdentity(LiveChatMessageAuthorDetails author) {
 		return new YouTubeAuthorIdentity(null, author.getDisplayName());
-	}
-
-	@Override
-	public void sendMessage(String message) {
-		String liveChatId = activeLiveChatId;
-		if (liveChatId == null) {
-			LOGGER.warn("Cannot send YouTube message because no active live chat is connected");
-			return;
-		}
-
-		LiveChatTextMessageDetails textMessageDetails = new LiveChatTextMessageDetails()
-				.setMessageText(message);
-		LiveChatMessageSnippet snippet = new LiveChatMessageSnippet()
-				.setLiveChatId(liveChatId)
-				.setType("textMessageEvent")
-				.setTextMessageDetails(textMessageDetails);
-		LiveChatMessage reply = new LiveChatMessage().setSnippet(snippet);
-
-		try {
-			youtube.liveChatMessages()
-					.insert(List.of("snippet"), reply)
-					.execute();
-			LOGGER.info("Sent ChatBrain reply");
-		} catch (GoogleJsonResponseException exception) {
-			logApiFailure("sending the hardcoded chat reply", exception);
-		} catch (IOException exception) {
-			logNetworkFailure("sending the hardcoded chat reply", exception);
-		}
 	}
 
 	private boolean shouldContinuePolling() {

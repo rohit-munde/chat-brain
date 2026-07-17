@@ -1,5 +1,6 @@
 package com.chatbrain.events;
 
+import java.time.Instant;
 import java.util.Objects;
 
 public final class ChatMessageEvent extends BaseEvent {
@@ -20,7 +21,17 @@ public final class ChatMessageEvent extends BaseEvent {
 			String handle,
 			String displayName,
 			String message) {
-		super(EventType.CHAT_MESSAGE);
+		this(platform, platformUserId, handle, displayName, message, Instant.now());
+	}
+
+	public ChatMessageEvent(
+			String platform,
+			String platformUserId,
+			String handle,
+			String displayName,
+			String message,
+			Instant timestamp) {
+		super(EventType.CHAT_MESSAGE, timestamp);
 		this.platform = Objects.requireNonNull(platform, "platform must not be null");
 		this.platformUserId = platformUserId;
 		this.handle = handle;

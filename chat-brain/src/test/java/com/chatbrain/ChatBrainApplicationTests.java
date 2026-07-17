@@ -12,7 +12,10 @@ class ChatBrainApplicationTests {
 	void applicationStarts() {
 		try (ConfigurableApplicationContext context = SpringApplication.run(
 				ChatBrainApplication.class,
-				"--spring.main.web-application-type=none")) {
+				"--spring.main.web-application-type=none",
+				"--chatbrain.youtube.enabled=false",
+				"--chatbrain.discord.enabled=false",
+				"--communitybrain.ai.enabled=false")) {
 			assertThat(context.isRunning()).isTrue();
 		}
 	}

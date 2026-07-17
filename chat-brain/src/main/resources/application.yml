@@ -2,6 +2,10 @@ spring:
   config:
     import: optional:file:.env[.properties]
 
+communitybrain:
+  ai:
+    enabled: ${COMMUNITYBRAIN_AI_ENABLED:true}
+
 chatbrain:
   discord:
     enabled: ${DISCORD_ENABLED:false}

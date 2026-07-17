@@ -13,6 +13,7 @@ public class PlatformMessageMapper {
 				message.platformUserId(),
 				message.handle(),
 				message.displayName(),
-				message.message());
+				message.message(),
+				message.timestamp());
 	}
 }
