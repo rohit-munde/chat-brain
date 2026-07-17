@@ -1,0 +1,10 @@
+spring:
+  config:
+    import: optional:file:.env[.properties]
+
+chatbrain:
+  discord:
+    enabled: ${DISCORD_ENABLED:false}
+    bot-token: ${DISCORD_BOT_TOKEN:}
+    guild-id: ${DISCORD_GUILD_ID:}
+    channel-id: ${DISCORD_CHANNEL_ID:}
