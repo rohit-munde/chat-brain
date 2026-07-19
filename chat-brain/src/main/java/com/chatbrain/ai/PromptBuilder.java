@@ -27,7 +27,11 @@ public class PromptBuilder {
 				Current Message:
 				%s
 
-				Respond as the AI co-host of the livestream.
+				Decide whether the AI co-host should reply to this message.
+				Return only valid JSON in this exact shape:
+				{"action":"REPLY|IGNORE","reply":"text","remember":false,"reason":"brief reason"}
+				Use REPLY when a response adds value. Use IGNORE when no response is needed.
+				For IGNORE, set reply to null.
 				""".formatted(
 				event.getPlatform(),
 				event.getHandle(),

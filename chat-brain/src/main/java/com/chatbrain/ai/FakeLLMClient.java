@@ -1,5 +1,6 @@
 package com.chatbrain.ai;
 
+import com.fasterxml.jackson.core.io.JsonStringEncoder;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
@@ -11,7 +12,8 @@ import org.springframework.stereotype.Component;
 public class FakeLLMClient implements LLMClient {
 
 	private static final String MESSAGE_PREFIX = "Current Message:\n";
-	private static final String RESPONSE_INSTRUCTION = "\n\nRespond as the AI co-host of the livestream.";
+	private static final String RESPONSE_INSTRUCTION =
+			"\n\nDecide whether the AI co-host should reply to this message.";
 
 	@Override
 	public String generateReply(String prompt) {
@@ -22,6 +24,10 @@ public class FakeLLMClient implements LLMClient {
 		}
 
 		String message = prompt.substring(messageStart + MESSAGE_PREFIX.length(), messageEnd).trim();
-		return "AI Response: " + message;
+		String reply = "AI Response: " + message;
+		String escapedReply = new String(JsonStringEncoder.getInstance().quoteAsString(reply));
+		return """
+				{"action":"REPLY","reply":"%s","remember":false,"reason":"Fake provider response"}
+				""".formatted(escapedReply).trim();
 	}
 }

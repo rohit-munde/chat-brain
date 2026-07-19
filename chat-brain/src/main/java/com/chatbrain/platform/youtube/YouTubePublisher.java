@@ -5,6 +5,8 @@ import com.google.api.services.youtube.YouTube;
 import com.google.api.services.youtube.model.LiveChatMessage;
 import com.google.api.services.youtube.model.LiveChatMessageSnippet;
 import com.google.api.services.youtube.model.LiveChatTextMessageDetails;
+import com.chatbrain.platform.youtube.metrics.YouTubeApiEndpoint;
+import com.chatbrain.platform.youtube.metrics.YouTubeApiMetricsService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
@@ -27,14 +29,17 @@ public class YouTubePublisher {
 
 	private final ObjectProvider<YouTube> youtubeProvider;
 	private final ObjectProvider<LiveChatSessionManager> sessionManagerProvider;
+	private final YouTubeApiMetricsService metricsService;
 	private final Set<String> publishedMessageIds = ConcurrentHashMap.newKeySet();
 	private final Map<String, Instant> publishedResponses = new ConcurrentHashMap<>();
 
 	public YouTubePublisher(
 			ObjectProvider<YouTube> youtubeProvider,
-			ObjectProvider<LiveChatSessionManager> sessionManagerProvider) {
+			ObjectProvider<LiveChatSessionManager> sessionManagerProvider,
+			YouTubeApiMetricsService metricsService) {
 		this.youtubeProvider = youtubeProvider;
 		this.sessionManagerProvider = sessionManagerProvider;
+		this.metricsService = metricsService;
 	}
 
 	public void publish(String response) {
@@ -57,11 +62,14 @@ public class YouTubePublisher {
 				return;
 			}
 
-			LiveChatMessage publishedMessage = youtube.liveChatMessages()
-					.insert(List.of("snippet"), createMessage(session.get().liveChatId(), response))
-					.execute();
+			LiveChatMessage publishedMessage = metricsService.recordApiCall(
+					YouTubeApiEndpoint.LIVE_CHAT_MESSAGES_INSERT,
+					() -> youtube.liveChatMessages()
+							.insert(List.of("snippet"), createMessage(session.get().liveChatId(), response))
+							.execute());
 			rememberPublishedMessage(publishedMessage);
 			rememberPublishedResponse(response);
+			metricsService.recordReplyPublished();
 			LOGGER.info("Published Successfully");
 		} catch (GoogleJsonResponseException exception) {
 			String details = exception.getDetails() == null

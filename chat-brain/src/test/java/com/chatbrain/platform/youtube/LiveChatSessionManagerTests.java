@@ -1,11 +1,13 @@
 package com.chatbrain.platform.youtube;
 
+import com.chatbrain.platform.youtube.metrics.YouTubeApiMetricsService;
 import com.google.api.services.youtube.YouTube;
 import com.google.api.services.youtube.model.LiveBroadcast;
 import com.google.api.services.youtube.model.LiveBroadcastListResponse;
 import com.google.api.services.youtube.model.LiveBroadcastSnippet;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 import java.io.IOException;
 import java.util.List;
@@ -30,7 +32,9 @@ class LiveChatSessionManagerTests {
 		when(liveBroadcasts.list(List.of("snippet"))).thenReturn(listRequest);
 		when(listRequest.setBroadcastStatus("active")).thenReturn(listRequest);
 		when(listRequest.execute()).thenReturn(activeBroadcastResponse());
-		sessionManager = new LiveChatSessionManager(youtube);
+		sessionManager = new LiveChatSessionManager(
+				youtube,
+				new YouTubeApiMetricsService(new SimpleMeterRegistry()));
 	}
 
 	@Test

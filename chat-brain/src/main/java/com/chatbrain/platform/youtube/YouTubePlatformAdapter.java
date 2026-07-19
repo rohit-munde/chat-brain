@@ -5,6 +5,8 @@ import com.chatbrain.platform.Platform;
 import com.chatbrain.platform.PlatformAdapter;
 import com.chatbrain.platform.PlatformMessage;
 import com.chatbrain.platform.events.PlatformMessageMapper;
+import com.chatbrain.platform.youtube.metrics.YouTubeApiEndpoint;
+import com.chatbrain.platform.youtube.metrics.YouTubeApiMetricsService;
 import com.google.api.client.googleapis.json.GoogleJsonResponseException;
 import com.google.api.services.youtube.YouTube;
 import com.google.api.services.youtube.model.Channel;
@@ -48,6 +50,7 @@ public final class YouTubePlatformAdapter implements PlatformAdapter {
 	private final YouTubePollingPolicy pollingPolicy;
 	private final PlatformMessageMapper messageMapper;
 	private final ApplicationEventPublisher eventPublisher;
+	private final YouTubeApiMetricsService metricsService;
 	private final ConcurrentHashMap<String, YouTubeAuthorIdentity> authorIdentityCache =
 			new ConcurrentHashMap<>();
 	private final AtomicBoolean running = new AtomicBoolean(false);
@@ -60,13 +63,15 @@ public final class YouTubePlatformAdapter implements PlatformAdapter {
 			YouTubePublisher youtubePublisher,
 			YouTubePollingPolicy pollingPolicy,
 			PlatformMessageMapper messageMapper,
-			ApplicationEventPublisher eventPublisher) {
+			ApplicationEventPublisher eventPublisher,
+			YouTubeApiMetricsService metricsService) {
 		this.youtube = youtube;
 		this.sessionManager = sessionManager;
 		this.youtubePublisher = youtubePublisher;
 		this.pollingPolicy = pollingPolicy;
 		this.messageMapper = messageMapper;
 		this.eventPublisher = eventPublisher;
+		this.metricsService = metricsService;
 	}
 
 	@Override
@@ -186,10 +191,12 @@ public final class YouTubePlatformAdapter implements PlatformAdapter {
 		if (requestCount == 1 || requestCount % 25 == 0) {
 			LOGGER.info("YouTube live-chat list requests attempted by this process: {}", requestCount);
 		}
-		return youtube.liveChatMessages()
-				.list(liveChatId, List.of("snippet", "authorDetails"))
-				.setPageToken(nextPageToken)
-				.execute();
+		return metricsService.recordApiCall(
+				YouTubeApiEndpoint.LIVE_CHAT_MESSAGES_LIST,
+				() -> youtube.liveChatMessages()
+						.list(liveChatId, List.of("snippet", "authorDetails"))
+						.setPageToken(nextPageToken)
+						.execute());
 	}
 
 	private void publishMessages(LiveChatMessageListResponse response) {
@@ -228,6 +235,7 @@ public final class YouTubePlatformAdapter implements PlatformAdapter {
 				authorIdentity.displayName(),
 				snippet.getDisplayMessage(),
 				timestamp);
+		metricsService.recordMessageReceived();
 
 		LOGGER.info("""
 				----------------------------------
@@ -257,20 +265,25 @@ public final class YouTubePlatformAdapter implements PlatformAdapter {
 	private YouTubeAuthorIdentity resolveAuthorIdentity(LiveChatMessageAuthorDetails author) {
 		YouTubeAuthorIdentity cachedIdentity = authorIdentityCache.get(author.getChannelId());
 		if (cachedIdentity != null) {
+			metricsService.recordAuthorCacheHit();
 			return cachedIdentity;
 		}
 
+		metricsService.recordAuthorCacheMiss();
 		YouTubeAuthorIdentity resolvedIdentity = fetchAuthorIdentity(author);
 		authorIdentityCache.put(author.getChannelId(), resolvedIdentity);
+		metricsService.recordUniqueAuthorEnrichment();
 		return resolvedIdentity;
 	}
 
 	private YouTubeAuthorIdentity fetchAuthorIdentity(LiveChatMessageAuthorDetails author) {
 		try {
-			List<Channel> channels = Optional.ofNullable(youtube.channels()
-					.list(List.of("snippet"))
-					.setId(List.of(author.getChannelId()))
-					.execute()
+			List<Channel> channels = Optional.ofNullable(metricsService.recordApiCall(
+					YouTubeApiEndpoint.CHANNELS_LIST,
+					() -> youtube.channels()
+							.list(List.of("snippet"))
+							.setId(List.of(author.getChannelId()))
+							.execute())
 					.getItems())
 					.orElseGet(List::of);
 			Channel channel = channels.stream()
@@ -303,6 +316,7 @@ public final class YouTubePlatformAdapter implements PlatformAdapter {
 
 	private void waitForNextPoll(Long pollingIntervalMillis) throws IOException {
 		long delayMillis = pollingPolicy.nextPollDelayMillis(pollingIntervalMillis);
+		metricsService.recordPollingInterval(delayMillis);
 		LOGGER.debug("Waiting {} ms before the next YouTube live-chat request", delayMillis);
 		waitFor(delayMillis);
 	}

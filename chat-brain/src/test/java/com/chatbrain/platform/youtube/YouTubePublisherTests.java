@@ -1,6 +1,8 @@
 package com.chatbrain.platform.youtube;
 
+import com.chatbrain.platform.youtube.metrics.YouTubeApiMetricsService;
 import com.google.api.services.youtube.YouTube;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import com.google.api.services.youtube.model.LiveChatMessage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -44,7 +46,10 @@ class YouTubePublisherTests {
 				.thenReturn(insertRequest);
 		when(insertRequest.execute()).thenReturn(new LiveChatMessage().setId("published-123"));
 
-		publisher = new YouTubePublisher(youtubeProvider, sessionManagerProvider);
+		publisher = new YouTubePublisher(
+				youtubeProvider,
+				sessionManagerProvider,
+				new YouTubeApiMetricsService(new SimpleMeterRegistry()));
 	}
 
 	@Test
