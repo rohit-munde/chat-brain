@@ -28,6 +28,14 @@ public class StreamContext {
 		append(recentAiComments, comment);
 	}
 
+	public synchronized List<String> recentChat(int limit) {
+		return recent(recentChatActivity, limit);
+	}
+
+	public synchronized List<String> recentAiComments(int limit) {
+		return recent(recentAiComments, limit);
+	}
+
 	public synchronized ProactiveCommentaryContext snapshot(
 			com.chatbrain.events.ProactiveStreamEvent event,
 			List<StreamTimelineEntry> timeline) {
@@ -46,5 +54,11 @@ public class StreamContext {
 		while (items.size() > MAX_RECENT_ITEMS) {
 			items.removeFirst();
 		}
+	}
+
+	private List<String> recent(ArrayDeque<String> items, int limit) {
+		if (limit <= 0) return List.of();
+		List<String> snapshot = List.copyOf(items);
+		return snapshot.subList(Math.max(0, snapshot.size() - limit), snapshot.size());
 	}
 }

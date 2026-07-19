@@ -2,6 +2,8 @@ package com.chatbrain.ai;
 
 import com.chatbrain.events.ChatMessageEvent;
 import com.chatbrain.memory.Memory;
+import com.chatbrain.comedy.ComedyContext;
+import com.chatbrain.comedy.ComedyThemeCount;
 import com.chatbrain.proactive.ProactiveCommentaryContext;
 import com.chatbrain.proactive.StreamTimelineEntry;
 import org.springframework.stereotype.Component;
@@ -14,7 +16,12 @@ import java.util.stream.Collectors;
 public class PromptBuilder {
 
 	public String build(ChatMessageEvent event, List<Memory> memories) {
+		return build(event, memories, ComedyContext.none());
+	}
+
+	public String build(ChatMessageEvent event, List<Memory> memories, ComedyContext comedy) {
 		Objects.requireNonNull(event, "event must not be null");
+		Objects.requireNonNull(comedy, "comedy must not be null");
 		List<Memory> safeMemories = List.copyOf(
 				Objects.requireNonNull(memories, "memories must not be null"));
 		return """
@@ -84,6 +91,9 @@ public class PromptBuilder {
 				Relevant Memories
 				%s
 
+				Comedy Intelligence
+				%s
+
 				Current Message:
 				%s
 
@@ -99,11 +109,17 @@ public class PromptBuilder {
 				event.getDisplayName(),
 				event.getTimestamp(),
 				formatMemories(safeMemories),
+				formatComedyContext(comedy),
 				event.getMessage());
 	}
 
 	public String buildProactive(ProactiveCommentaryContext context) {
+		return buildProactive(context, ComedyContext.none());
+	}
+
+	public String buildProactive(ProactiveCommentaryContext context, ComedyContext comedy) {
 		Objects.requireNonNull(context, "context must not be null");
+		Objects.requireNonNull(comedy, "comedy must not be null");
 		return """
 				Role
 				You are ChatBrain, the intelligent invisible co-host for Rohit's software-development
@@ -140,6 +156,9 @@ public class PromptBuilder {
 				Recent AI Comments
 				%s
 
+				Comedy Intelligence
+				%s
+
 				Current Event
 				Type: %s
 				Timestamp: %s
@@ -158,6 +177,7 @@ public class PromptBuilder {
 				formatTimeline(context.recentTimeline()),
 				formatItems(context.recentChatSummary()),
 				formatItems(context.recentAiComments()),
+				formatComedyContext(comedy),
 				context.currentEvent().getEventType(),
 				context.currentEvent().getTimestamp(),
 				context.currentEvent().getSummary());
@@ -188,6 +208,70 @@ public class PromptBuilder {
 		}
 		return items.stream()
 				.map(item -> "- " + item)
+				.collect(Collectors.joining("\n"));
+	}
+
+	private String formatComedyContext(ComedyContext context) {
+		return """
+				Baseline Voice: Sound like a naturally witty, culturally aware senior Indian software
+				engineer. Do not perform an accent, use stereotypes, or force Indian references. Cultural
+				references are optional and valid only when the detected context and guidance support them.
+
+				Opportunity Detected: %s
+				Opportunity: %s
+				Recommended Style: %s
+				Stream Mood: %s
+				Current Project: %s
+				Current Topic: %s
+				Current Coding Phase: %s
+				Cultural Guidance: %s
+
+				Active Running Themes
+				%s
+
+				Available Callbacks
+				%s
+
+				Recent Stream Timeline
+				%s
+
+				Recent Viewer Comments
+				%s
+
+				Recent AI Comments
+				%s
+
+				Comedy Quality Gate
+				Before using humor, silently verify every item below. If any important item fails, stay
+				serious or choose IGNORE. Never sacrifice technical accuracy for a joke.
+				%s
+
+				Few-Shot Decision Examples
+				Examples using COMMENT apply only to proactive stream events. For viewer messages, follow the
+				final output contract and use only REPLY or IGNORE.
+				%s
+				""".formatted(
+				context.comedyOpportunity(),
+				context.opportunity(),
+				context.recommendedStyle(),
+				context.streamMood(),
+				context.currentProject(),
+				context.currentTopic(),
+				context.currentCodingPhase(),
+				context.culturalGuidance(),
+				formatThemes(context.activeThemes()),
+				formatItems(context.activeCallbacks()),
+				formatTimeline(context.recentTimeline()),
+				formatItems(context.recentChat()),
+				formatItems(context.recentAiComments()),
+				formatItems(context.qualityChecklist()),
+				context.fewShotExamples().isBlank() ? "- None" : context.fewShotExamples());
+	}
+
+	private String formatThemes(List<ComedyThemeCount> themes) {
+		if (themes.isEmpty()) return "- None";
+		return themes.stream()
+				.map(theme -> "- %s: %d".formatted(theme.theme().displayName(), theme.count()))
 				.collect(Collectors.joining("\n"));
 	}
 }

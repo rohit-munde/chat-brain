@@ -15,6 +15,8 @@ public class ProactiveCommentaryProperties {
 	private String streamTitle = "Not provided";
 	private String currentProject = "ChatBrain";
 	private String currentCodingTopic = "Not provided";
+	private String currentCodingPhase = "Not provided";
+	private String streamMood = "Focused";
 
 	public boolean isEnabled() { return enabled; }
 	public void setEnabled(boolean enabled) { this.enabled = enabled; }
@@ -32,4 +34,8 @@ public class ProactiveCommentaryProperties {
 	public void setCurrentProject(String currentProject) { this.currentProject = currentProject; }
 	public String getCurrentCodingTopic() { return currentCodingTopic; }
 	public void setCurrentCodingTopic(String currentCodingTopic) { this.currentCodingTopic = currentCodingTopic; }
+	public String getCurrentCodingPhase() { return currentCodingPhase; }
+	public void setCurrentCodingPhase(String currentCodingPhase) { this.currentCodingPhase = currentCodingPhase; }
+	public String getStreamMood() { return streamMood; }
+	public void setStreamMood(String streamMood) { this.streamMood = streamMood; }
 }

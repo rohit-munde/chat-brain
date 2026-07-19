@@ -3,6 +3,8 @@ package com.chatbrain.proactive;
 import com.chatbrain.ai.AIResponseDecisionParser;
 import com.chatbrain.ai.LLMClient;
 import com.chatbrain.ai.PromptBuilder;
+import com.chatbrain.comedy.ComedyContext;
+import com.chatbrain.comedy.ComedyIntelligence;
 import com.chatbrain.events.BuildSucceededEvent;
 import com.chatbrain.platform.youtube.YouTubePublisher;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -85,11 +87,15 @@ class ProactiveCommentaryOrchestratorTests {
 			properties.setMinimumCooldown(Duration.ZERO);
 			StreamContext streamContext = new StreamContext(properties);
 			ProactiveCommentaryGuard guard = new ProactiveCommentaryGuard(properties);
+			ComedyIntelligence comedyIntelligence = mock(ComedyIntelligence.class);
+			when(comedyIntelligence.analyze(org.mockito.ArgumentMatchers.any(BuildSucceededEvent.class)))
+					.thenReturn(ComedyContext.none());
 			orchestrator = new ProactiveCommentaryOrchestrator(
 					properties,
 					timeline,
 					streamContext,
 					guard,
+					comedyIntelligence,
 					new PromptBuilder(),
 					llmClient,
 					new AIResponseDecisionParser(new ObjectMapper()),

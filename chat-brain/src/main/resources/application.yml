@@ -15,6 +15,8 @@ communitybrain:
       stream-title: ${COMMUNITYBRAIN_STREAM_TITLE:Not provided}
       current-project: ${COMMUNITYBRAIN_CURRENT_PROJECT:ChatBrain}
       current-coding-topic: ${COMMUNITYBRAIN_CURRENT_CODING_TOPIC:Not provided}
+      current-coding-phase: ${COMMUNITYBRAIN_CURRENT_CODING_PHASE:Not provided}
+      stream-mood: ${COMMUNITYBRAIN_STREAM_MOOD:Focused}
     openai:
       api-key: ${OPENAI_API_KEY:}
       model: ${OPENAI_MODEL:gpt-5.5}

@@ -1,5 +1,7 @@
 package com.chatbrain.ai;
 
+import com.chatbrain.comedy.ComedyContext;
+import com.chatbrain.comedy.ComedyIntelligence;
 import com.chatbrain.events.ChatMessageEvent;
 import com.chatbrain.memory.Memory;
 import com.chatbrain.memory.MemoryRetriever;
@@ -26,6 +28,7 @@ class AIOrchestratorTests {
 	@Test
 	void retrievesMemoriesBeforeBuildingPromptAndPublishingReply() {
 		MemoryRetriever memoryRetriever = mock(MemoryRetriever.class);
+		ComedyIntelligence comedyIntelligence = mock(ComedyIntelligence.class);
 		PromptBuilder promptBuilder = mock(PromptBuilder.class);
 		LLMClient llmClient = mock(LLMClient.class);
 		AIResponseDecisionParser decisionParser = parser();
@@ -34,12 +37,14 @@ class AIOrchestratorTests {
 		ChatMessageEvent event = discordMessage();
 		List<Memory> memories = List.of(memory("PREFERENCE", "Likes Java"));
 		when(memoryRetriever.retrieve(event)).thenReturn(memories);
-		when(promptBuilder.build(event, memories)).thenReturn("prompt");
+		when(comedyIntelligence.analyze(event)).thenReturn(ComedyContext.none());
+		when(promptBuilder.build(event, memories, ComedyContext.none())).thenReturn("prompt");
 		when(llmClient.generateReply("prompt")).thenReturn("""
 				{"action":"REPLY","reply":"AI response"}
 				""");
 		AIOrchestrator orchestrator = new AIOrchestrator(
 				memoryRetriever,
+				comedyIntelligence,
 				promptBuilder,
 				llmClient,
 				decisionParser,
@@ -52,7 +57,7 @@ class AIOrchestratorTests {
 		InOrder workflow = inOrder(
 				memoryRetriever, promptBuilder, llmClient, youtubePublisher, memoryLearningService);
 		workflow.verify(memoryRetriever).retrieve(event);
-		workflow.verify(promptBuilder).build(event, memories);
+		workflow.verify(promptBuilder).build(event, memories, ComedyContext.none());
 		workflow.verify(llmClient).generateReply("prompt");
 		workflow.verify(youtubePublisher).publish("AI response");
 		workflow.verify(memoryLearningService).learn(event, "AI response");
@@ -61,6 +66,7 @@ class AIOrchestratorTests {
 	@Test
 	void memoryLearningFailureDoesNotInterruptPublishedReply() {
 		MemoryRetriever memoryRetriever = mock(MemoryRetriever.class);
+		ComedyIntelligence comedyIntelligence = mock(ComedyIntelligence.class);
 		PromptBuilder promptBuilder = mock(PromptBuilder.class);
 		LLMClient llmClient = mock(LLMClient.class);
 		AIResponseDecisionParser decisionParser = parser();
@@ -68,7 +74,8 @@ class AIOrchestratorTests {
 		MemoryLearningService memoryLearningService = mock(MemoryLearningService.class);
 		ChatMessageEvent event = discordMessage();
 		when(memoryRetriever.retrieve(event)).thenReturn(List.of());
-		when(promptBuilder.build(event, List.of())).thenReturn("prompt");
+		when(comedyIntelligence.analyze(event)).thenReturn(ComedyContext.none());
+		when(promptBuilder.build(event, List.of(), ComedyContext.none())).thenReturn("prompt");
 		when(llmClient.generateReply("prompt")).thenReturn("""
 				{"action":"REPLY","reply":"AI response"}
 				""");
@@ -76,6 +83,7 @@ class AIOrchestratorTests {
 				.when(memoryLearningService).learn(event, "AI response");
 		AIOrchestrator orchestrator = new AIOrchestrator(
 				memoryRetriever,
+				comedyIntelligence,
 				promptBuilder,
 				llmClient,
 				decisionParser,
@@ -93,6 +101,7 @@ class AIOrchestratorTests {
 	@Test
 	void ignoreDecisionSkipsPublishingAndStillRunsMemoryLearning() {
 		MemoryRetriever memoryRetriever = mock(MemoryRetriever.class);
+		ComedyIntelligence comedyIntelligence = mock(ComedyIntelligence.class);
 		PromptBuilder promptBuilder = mock(PromptBuilder.class);
 		LLMClient llmClient = mock(LLMClient.class);
 		YouTubePublisher youtubePublisher = mock(YouTubePublisher.class);
@@ -102,10 +111,12 @@ class AIOrchestratorTests {
 				{"action":"IGNORE"}
 				""";
 		when(memoryRetriever.retrieve(event)).thenReturn(List.of());
-		when(promptBuilder.build(event, List.of())).thenReturn("prompt");
+		when(comedyIntelligence.analyze(event)).thenReturn(ComedyContext.none());
+		when(promptBuilder.build(event, List.of(), ComedyContext.none())).thenReturn("prompt");
 		when(llmClient.generateReply("prompt")).thenReturn(decisionJson);
 		AIOrchestrator orchestrator = new AIOrchestrator(
 				memoryRetriever,
+				comedyIntelligence,
 				promptBuilder,
 				llmClient,
 				parser(),
@@ -122,16 +133,19 @@ class AIOrchestratorTests {
 	@Test
 	void malformedDecisionFallsBackToNormalReply() {
 		MemoryRetriever memoryRetriever = mock(MemoryRetriever.class);
+		ComedyIntelligence comedyIntelligence = mock(ComedyIntelligence.class);
 		PromptBuilder promptBuilder = mock(PromptBuilder.class);
 		LLMClient llmClient = mock(LLMClient.class);
 		YouTubePublisher youtubePublisher = mock(YouTubePublisher.class);
 		MemoryLearningService memoryLearningService = mock(MemoryLearningService.class);
 		ChatMessageEvent event = discordMessage();
 		when(memoryRetriever.retrieve(event)).thenReturn(List.of());
-		when(promptBuilder.build(event, List.of())).thenReturn("prompt");
+		when(comedyIntelligence.analyze(event)).thenReturn(ComedyContext.none());
+		when(promptBuilder.build(event, List.of(), ComedyContext.none())).thenReturn("prompt");
 		when(llmClient.generateReply("prompt")).thenReturn("ordinary reply");
 		AIOrchestrator orchestrator = new AIOrchestrator(
 				memoryRetriever,
+				comedyIntelligence,
 				promptBuilder,
 				llmClient,
 				parser(),

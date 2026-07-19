@@ -289,3 +289,89 @@ communitybrain.ai.proactive.current-coding-topic: Not provided
 ```
 
 The feature remains disabled until a trusted stream-event producer is connected.
+
+## Comedy Intelligence V1
+
+Comedy Intelligence enriches both existing AI paths; it does not generate or publish jokes
+itself and does not replace the AI decision engine. Its output is an immutable `ComedyContext`
+that `PromptBuilder` formats alongside existing memory and stream context.
+
+```text
+ChatMessageEvent or ProactiveStreamEvent
+        ↓
+ComedyIntelligence
+        ├── ComedyOpportunityDetector
+        ├── ComedyMemory
+        ├── ComedyStyleSelector
+        │       └── ComedyStyleStrategy implementations
+        ├── CulturalReferenceGuide
+        ├── ComedyQualityPolicy
+        └── ComedyFewShotLibrary
+        ↓
+ComedyContext
+        ↓
+PromptBuilder
+        ↓
+Existing LLMClient → Decision Engine → YouTubePublisher
+```
+
+### Components
+
+- `ComedyOpportunityDetector` deterministically classifies the current message or stream
+  event. Greetings produce no opportunity. Recognized situations include Docker and build
+  failures, compilation errors, debugging, dependency problems, Spring restarts,
+  configuration errors, overengineering, feature creep, merge conflicts, milestones,
+  technical questions, and explicitly relevant cultural contexts. Production data loss,
+  security incidents, outages, and credential leaks are classified as serious and suppress
+  humor.
+- `ComedyStyleSelector` evaluates ordered `ComedyStyleStrategy` beans. It contains no random
+  selection. `ContextualComedyStyleStrategy` provides the V1 mapping to developer humor, dry
+  sarcasm, observation, friendly roast, callbacks, celebration, teaching through humor, and
+  context-specific Indian, Bollywood, cricket, office, college, or startup styles.
+- `ComedyMemory` is a synchronized, in-memory store of stream-scoped running themes and
+  occurrence counters. V1 tracks Docker, Redis, Spring restarts, coffee, browser tabs, TODOs,
+  build failures, Maven downloads, and merge conflicts. A recurring theme becomes an
+  available callback only when the current situation refers to that same theme.
+- `CulturalReferenceGuide` supplies constraints rather than canned jokes. Indian engineering,
+  office, startup, Bollywood, cricket, and internet references must be relevant, current,
+  broadly understandable, and free of targeted stereotypes. No cultural style is selected
+  merely because the livestream host is Indian.
+- `ComedyQualityPolicy` provides the silent pre-publication checklist: relevance, wit,
+  accessibility, safety, repetition, brevity, mood, and technical accuracy. Failure of an
+  important check means serious treatment or silence.
+- `ComedyFewShotLibrary` provides compact examples covering IGNORE, developer/Docker/Spring
+  humor, teaching, friendly roasting, callbacks, Indian engineering culture, Bollywood and
+  cricket analogies, technical and serious answers, and milestone celebration.
+- `ComedyContext` carries only bounded prompt inputs: opportunity, recommended style, stream
+  mood, project, topic, coding phase, cultural guidance, running themes, callbacks, eight
+  recent timeline entries, eight recent viewer comments, eight recent AI comments, quality
+  checks, and the few-shot library.
+- `ComedyIntelligence` coordinates these components. It also records AI responses in the
+  existing in-memory `StreamContext`, allowing later prompts to avoid repeated wording.
+
+Roasts remain developer-focused and supportive. Appearance, religion, politics, family,
+money, health, race, and gender are prohibited subjects. Humor is subordinate to correctness,
+stream mood, and the existing REPLY/IGNORE/COMMENT contract.
+
+### Configuration context
+
+Two optional prompt-context properties complement the existing proactive settings:
+
+```yaml
+communitybrain.ai.proactive.current-coding-phase: Not provided
+communitybrain.ai.proactive.stream-mood: Focused
+```
+
+They can be set through `COMMUNITYBRAIN_CURRENT_CODING_PHASE` and
+`COMMUNITYBRAIN_STREAM_MOOD`. Unknown information remains `Not provided`; the subsystem never
+invents stream state.
+
+### Adding a comedy style
+
+Add the style to `ComedyStyle` and provide a `ComedyStyleStrategy` bean that recognizes its
+specific, real context. Spring injects ordered strategies into `ComedyStyleSelector`, so the
+selector, orchestrators, decision engine, and publishers require no modification. If the
+style has cultural or safety constraints, extend `CulturalReferenceGuide`; add representative
+few-shot coverage only when it improves model behavior. Future festival, regional, seasonal,
+gaming, AI, open-source, conference, and release-day styles therefore plug into the subsystem
+without changing the event or AI architecture.

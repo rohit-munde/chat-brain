@@ -1,6 +1,8 @@
 package com.chatbrain.ai;
 
 import com.chatbrain.events.ChatMessageEvent;
+import com.chatbrain.comedy.ComedyContext;
+import com.chatbrain.comedy.ComedyIntelligence;
 import com.chatbrain.memory.Memory;
 import com.chatbrain.memory.MemoryLearningService;
 import com.chatbrain.memory.MemoryRetriever;
@@ -18,6 +20,7 @@ public class AIOrchestrator {
 	private static final Logger LOGGER = LoggerFactory.getLogger(AIOrchestrator.class);
 
 	private final MemoryRetriever memoryRetriever;
+	private final ComedyIntelligence comedyIntelligence;
 	private final PromptBuilder promptBuilder;
 	private final LLMClient llmClient;
 	private final AIResponseDecisionParser decisionParser;
@@ -27,6 +30,7 @@ public class AIOrchestrator {
 
 	public AIOrchestrator(
 			MemoryRetriever memoryRetriever,
+			ComedyIntelligence comedyIntelligence,
 			PromptBuilder promptBuilder,
 			LLMClient llmClient,
 			AIResponseDecisionParser decisionParser,
@@ -34,6 +38,7 @@ public class AIOrchestrator {
 			MemoryLearningService memoryLearningService,
 			List<AIResponseDecisionObserver> decisionObservers) {
 		this.memoryRetriever = memoryRetriever;
+		this.comedyIntelligence = comedyIntelligence;
 		this.promptBuilder = promptBuilder;
 		this.llmClient = llmClient;
 		this.decisionParser = decisionParser;
@@ -49,12 +54,14 @@ public class AIOrchestrator {
 		LOGGER.info("Retrieved {} memories", memories.size());
 
 		LOGGER.info("Building Prompt");
-		String prompt = promptBuilder.build(event, memories);
+		ComedyContext comedyContext = comedyIntelligence.analyze(event);
+		String prompt = promptBuilder.build(event, memories, comedyContext);
 
 		LOGGER.info("Calling LLM");
 		String llmOutput = llmClient.generateReply(prompt);
 		AIResponseDecision decision = decisionParser.parse(llmOutput);
 		executeDecision(event, decision);
+		comedyIntelligence.recordAiMessage(decision.reply());
 		try {
 			memoryLearningService.learn(event, memoryLearningInput(decision, llmOutput));
 		} catch (RuntimeException exception) {

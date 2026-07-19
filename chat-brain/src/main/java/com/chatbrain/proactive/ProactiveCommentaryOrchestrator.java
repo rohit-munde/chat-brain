@@ -5,6 +5,8 @@ import com.chatbrain.ai.AIResponseDecision;
 import com.chatbrain.ai.AIResponseDecisionParser;
 import com.chatbrain.ai.LLMClient;
 import com.chatbrain.ai.PromptBuilder;
+import com.chatbrain.comedy.ComedyContext;
+import com.chatbrain.comedy.ComedyIntelligence;
 import com.chatbrain.events.ProactiveStreamEvent;
 import com.chatbrain.platform.youtube.YouTubePublisher;
 import org.slf4j.Logger;
@@ -24,6 +26,7 @@ public class ProactiveCommentaryOrchestrator {
 	private final StreamTimeline timeline;
 	private final StreamContext streamContext;
 	private final ProactiveCommentaryGuard guard;
+	private final ComedyIntelligence comedyIntelligence;
 	private final PromptBuilder promptBuilder;
 	private final LLMClient llmClient;
 	private final AIResponseDecisionParser decisionParser;
@@ -35,6 +38,7 @@ public class ProactiveCommentaryOrchestrator {
 			StreamTimeline timeline,
 			StreamContext streamContext,
 			ProactiveCommentaryGuard guard,
+			ComedyIntelligence comedyIntelligence,
 			PromptBuilder promptBuilder,
 			LLMClient llmClient,
 			AIResponseDecisionParser decisionParser,
@@ -44,6 +48,7 @@ public class ProactiveCommentaryOrchestrator {
 		this.timeline = timeline;
 		this.streamContext = streamContext;
 		this.guard = guard;
+		this.comedyIntelligence = comedyIntelligence;
 		this.promptBuilder = promptBuilder;
 		this.llmClient = llmClient;
 		this.decisionParser = decisionParser;
@@ -64,7 +69,8 @@ public class ProactiveCommentaryOrchestrator {
 		try {
 			ProactiveCommentaryContext context = streamContext.snapshot(
 					event, timeline.recentEntries(TIMELINE_CONTEXT_SIZE));
-			String prompt = promptBuilder.buildProactive(context);
+			ComedyContext comedyContext = comedyIntelligence.analyze(event);
+			String prompt = promptBuilder.buildProactive(context, comedyContext);
 			AIResponseDecision decision = decisionParser.parse(llmClient.generateReply(prompt));
 			execute(decision);
 		} catch (RuntimeException exception) {
