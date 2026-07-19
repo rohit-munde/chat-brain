@@ -1,6 +1,6 @@
 # ChatBrain Architecture
 
-## AI response decision flow
+## AI Decision Engine
 
 ChatBrain uses Spring application events to keep platform reception independent from identity,
 memory, and AI concerns. Incoming YouTube and Discord messages are normalized into a
@@ -37,14 +37,25 @@ services.
 
 ## Decision model
 
-The LLM is instructed to return a JSON decision:
+The AI Decision Engine is the combination of the decision policy owned by `PromptBuilder`, the
+structured output returned through `LLMClient`, the validation performed by
+`AIResponseDecisionParser`, and the exhaustive action execution in `AIOrchestrator`. It is the
+single behavioral path that decides whether ChatBrain participates in a conversation.
+
+The LLM is instructed to return one of two JSON decisions:
 
 ```json
 {
   "action": "REPLY",
-  "reply": "Hello Rohit!",
-  "remember": true,
-  "reason": "User introduced themselves"
+  "reply": "Hello Rohit!"
+}
+```
+
+or:
+
+```json
+{
+  "action": "IGNORE"
 }
 ```
 
@@ -57,17 +68,22 @@ supports:
 The enum provides a deliberate extension point for future actions without placing those actions
 in the orchestrator before they are required.
 
+`AIResponseDecision` contains only the V1 execution contract: `action` and optional `reply`.
 `AIResponseDecisionParser` owns JSON deserialization and validation. It accepts plain JSON and
-JSON enclosed in a Markdown code fence. A `REPLY` decision must contain nonblank reply text, the
-action must be recognized, and the `remember` field must be present. If JSON parsing or validation
-fails, the parser creates a safe `REPLY` decision whose reply is the complete original LLM output.
-This preserves compatibility with the fake provider and with unexpected provider responses.
+JSON enclosed in a Markdown code fence. A `REPLY` decision must contain nonblank reply text, while
+an `IGNORE` decision does not require a reply. Unknown JSON properties are ignored for backwards
+compatibility. If JSON parsing or validation fails, the parser creates a safe `REPLY` decision
+whose reply is the complete original LLM output. A blank provider response uses a nonblank safe
+fallback so malformed output cannot crash publication or the event pipeline.
 
 ## Prompt contract
 
 `PromptBuilder` still owns all prompt formatting. In addition to platform identity, recent
-memories, timestamp, and the current message, it instructs the model to decide whether a response
-adds value and to return only the supported JSON shape.
+memories, timestamp, and the current message, it defines ChatBrain as an intelligent invisible
+co-host rather than a mention-driven chatbot. The decision policy favors quality over quantity:
+technical questions, debugging, architecture, useful context, misconceptions, interesting
+opinions, and entertaining opportunities normally merit `REPLY`; emoji-only messages, short
+acknowledgements, spam, and low-value interruptions normally merit `IGNORE`.
 
 `LLMClient` remains unchanged:
 
@@ -88,10 +104,8 @@ therefore performed immediately after the LLM call.
 - `REPLY` calls `YouTubePublisher.publish(reply)`.
 - `IGNORE` logs the decision and does not call the publisher.
 
-Memory learning is invoked after either action, preserving the existing learning lifecycle. The
-`remember` value is retained in the decision model for future policy work but does not currently
-enable, disable, or otherwise change `MemoryLearningService`. This avoids silently redesigning
-the existing memory behavior as part of the response-decision milestone.
+Memory learning is invoked after either action, preserving the existing learning lifecycle.
+Decision execution does not change identity resolution, memory retrieval, or memory persistence.
 
 ## Design rationale
 
@@ -107,6 +121,11 @@ This implementation fits the current architecture because:
 - malformed model output degrades to the previous plain-text reply behavior;
 - future actions can extend `AIResponseAction` and the orchestrator's exhaustive decision switch
   without changing platform adapters or LLM implementations.
+
+Potential future actions include `MODERATE`, `REMEMBER_ONLY`, `PRODUCER_NOTIFICATION`,
+`TRIGGER_CTA`, and `TRIGGER_COMEDY`. They are intentionally not present in the enum today; adding
+one will require an explicit execution branch, keeping unsupported behavior impossible by
+default.
 
 No moderation, command handling, or additional decision actions are implemented in this
 milestone.

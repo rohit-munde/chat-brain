@@ -15,23 +15,19 @@ class AIResponseDecisionParserTests {
 		AIResponseDecision decision = parser.parse("""
 				{
 				  "action": "REPLY",
-				  "reply": "Hello Rohit!",
-				  "remember": true,
-				  "reason": "User introduced themselves"
+				  "reply": "Hello Rohit!"
 				}
 				""");
 
 		assertThat(decision.action()).isEqualTo(AIResponseAction.REPLY);
 		assertThat(decision.reply()).isEqualTo("Hello Rohit!");
-		assertThat(decision.remember()).isTrue();
-		assertThat(decision.reason()).isEqualTo("User introduced themselves");
 	}
 
 	@Test
 	void parsesIgnoreDecisionInsideMarkdownFence() {
 		AIResponseDecision decision = parser.parse("""
 				```json
-				{"action":"IGNORE","reply":null,"remember":false,"reason":"No action needed"}
+				{"action":"IGNORE"}
 				```
 				""");
 
@@ -45,13 +41,12 @@ class AIResponseDecisionParserTests {
 
 		assertThat(decision.action()).isEqualTo(AIResponseAction.REPLY);
 		assertThat(decision.reply()).isEqualTo("Hello from the model");
-		assertThat(decision.remember()).isFalse();
 	}
 
 	@Test
 	void fallsBackWhenReplyDecisionHasNoReply() {
 		AIResponseDecision decision = parser.parse("""
-				{"action":"REPLY","reply":null,"remember":false,"reason":"Invalid"}
+				{"action":"REPLY","reply":null}
 				""");
 
 		assertThat(decision.action()).isEqualTo(AIResponseAction.REPLY);
@@ -59,14 +54,22 @@ class AIResponseDecisionParserTests {
 	}
 
 	@Test
-	void fallsBackWhenRequiredRememberFieldIsMissing() {
+	void acceptsPreviousOptionalMetadataWithoutChangingV1Decision() {
 		String output = """
-				{"action":"IGNORE","reply":null,"reason":"Incomplete decision"}
+				{"action":"IGNORE","remember":true,"reason":"Legacy metadata"}
 				""";
 
 		AIResponseDecision decision = parser.parse(output);
 
+		assertThat(decision.action()).isEqualTo(AIResponseAction.IGNORE);
+		assertThat(decision.reply()).isNull();
+	}
+
+	@Test
+	void blankOutputUsesNonEmptySafeReplyFallback() {
+		AIResponseDecision decision = parser.parse("   ");
+
 		assertThat(decision.action()).isEqualTo(AIResponseAction.REPLY);
-		assertThat(decision.reply()).isEqualTo(output.trim());
+		assertThat(decision.reply()).isNotBlank();
 	}
 }

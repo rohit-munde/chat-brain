@@ -51,8 +51,7 @@ class YouTubeApiMetricsServiceTests {
 		metricsService.recordUniqueAuthorEnrichment();
 		metricsService.onDecisionExecuted(
 				youtubeMessage(),
-				new AIResponseDecision(
-						AIResponseAction.IGNORE, null, false, "No reply needed"));
+				new AIResponseDecision(AIResponseAction.IGNORE, null));
 
 		YouTubeApiMetrics snapshot = metricsService.snapshot();
 		assertThat(snapshot.currentPollingIntervalMillis()).isEqualTo(10_000);
@@ -78,7 +77,7 @@ class YouTubeApiMetricsServiceTests {
 
 		metricsService.onDecisionExecuted(
 				discordEvent,
-				new AIResponseDecision(AIResponseAction.IGNORE, null, false, "No reply needed"));
+				new AIResponseDecision(AIResponseAction.IGNORE, null));
 
 		assertThat(metricsService.snapshot().messagesIgnored()).isZero();
 	}

@@ -12,8 +12,7 @@ import org.springframework.stereotype.Component;
 public class FakeLLMClient implements LLMClient {
 
 	private static final String MESSAGE_PREFIX = "Current Message:\n";
-	private static final String RESPONSE_INSTRUCTION =
-			"\n\nDecide whether the AI co-host should reply to this message.";
+	private static final String RESPONSE_INSTRUCTION = "\n\nRole\n";
 
 	@Override
 	public String generateReply(String prompt) {
@@ -27,7 +26,7 @@ public class FakeLLMClient implements LLMClient {
 		String reply = "AI Response: " + message;
 		String escapedReply = new String(JsonStringEncoder.getInstance().quoteAsString(reply));
 		return """
-				{"action":"REPLY","reply":"%s","remember":false,"reason":"Fake provider response"}
+				{"action":"REPLY","reply":"%s"}
 				""".formatted(escapedReply).trim();
 	}
 }

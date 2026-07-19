@@ -1,6 +1,7 @@
 package com.chatbrain.ai;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,6 +13,8 @@ public class AIResponseDecisionParser {
 	private static final Logger LOGGER = LoggerFactory.getLogger(AIResponseDecisionParser.class);
 	private static final String JSON_FENCE = "```json";
 	private static final String GENERIC_FENCE = "```";
+	private static final String EMPTY_OUTPUT_FALLBACK_REPLY =
+			"I’m temporarily unable to generate a response. Please try again shortly.";
 
 	private final ObjectMapper objectMapper;
 
@@ -21,7 +24,8 @@ public class AIResponseDecisionParser {
 
 	public AIResponseDecision parse(String llmOutput) {
 		if (llmOutput == null || llmOutput.isBlank()) {
-			throw new IllegalArgumentException("LLM output must not be blank");
+			LOGGER.warn("LLM returned no decision output; using the safe reply fallback");
+			return AIResponseDecision.reply(EMPTY_OUTPUT_FALLBACK_REPLY);
 		}
 
 		try {
@@ -29,9 +33,7 @@ public class AIResponseDecisionParser {
 					removeMarkdownFence(llmOutput), DecisionPayload.class);
 			return new AIResponseDecision(
 					payload.action(),
-					payload.reply(),
-					requireRemember(payload.remember()),
-					payload.reason());
+					payload.reply());
 		} catch (JsonProcessingException | IllegalArgumentException exception) {
 			LOGGER.warn("Unable to parse structured AI decision; treating the complete output as a reply: {}",
 					exception.getMessage());
@@ -54,17 +56,9 @@ public class AIResponseDecisionParser {
 		return trimmedOutput;
 	}
 
-	private boolean requireRemember(Boolean remember) {
-		if (remember == null) {
-			throw new IllegalArgumentException("remember must not be null");
-		}
-		return remember;
-	}
-
+	@JsonIgnoreProperties(ignoreUnknown = true)
 	private record DecisionPayload(
 			AIResponseAction action,
-			String reply,
-			Boolean remember,
-			String reason) {
+			String reply) {
 	}
 }

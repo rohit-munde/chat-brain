@@ -36,7 +36,7 @@ class AIOrchestratorTests {
 		when(memoryRetriever.retrieve(event)).thenReturn(memories);
 		when(promptBuilder.build(event, memories)).thenReturn("prompt");
 		when(llmClient.generateReply("prompt")).thenReturn("""
-				{"action":"REPLY","reply":"AI response","remember":false,"reason":"Helpful reply"}
+				{"action":"REPLY","reply":"AI response"}
 				""");
 		AIOrchestrator orchestrator = new AIOrchestrator(
 				memoryRetriever,
@@ -70,7 +70,7 @@ class AIOrchestratorTests {
 		when(memoryRetriever.retrieve(event)).thenReturn(List.of());
 		when(promptBuilder.build(event, List.of())).thenReturn("prompt");
 		when(llmClient.generateReply("prompt")).thenReturn("""
-				{"action":"REPLY","reply":"AI response","remember":false,"reason":"Helpful reply"}
+				{"action":"REPLY","reply":"AI response"}
 				""");
 		doThrow(new IllegalStateException("database unavailable"))
 				.when(memoryLearningService).learn(event, "AI response");
@@ -99,7 +99,7 @@ class AIOrchestratorTests {
 		MemoryLearningService memoryLearningService = mock(MemoryLearningService.class);
 		ChatMessageEvent event = discordMessage();
 		String decisionJson = """
-				{"action":"IGNORE","reply":null,"remember":false,"reason":"No response needed"}
+				{"action":"IGNORE"}
 				""";
 		when(memoryRetriever.retrieve(event)).thenReturn(List.of());
 		when(promptBuilder.build(event, List.of())).thenReturn("prompt");
@@ -164,9 +164,10 @@ class AIOrchestratorTests {
 				.contains("- [INTEREST] Uses Spring Boot")
 				.contains("Current Message:")
 				.contains("How do I deploy Spring Boot?")
-				.contains("Decide whether the AI co-host should reply")
-				.contains("Return only valid JSON")
-				.contains("REPLY|IGNORE");
+				.contains("intelligent invisible co-host")
+				.contains("Prefer fewer high-quality responses")
+				.contains("For a reply: {\"action\":\"REPLY\"")
+				.contains("For no response: {\"action\":\"IGNORE\"}");
 		AIResponseDecision fakeDecision = parser().parse(new FakeLLMClient().generateReply(prompt));
 		assertThat(fakeDecision.action()).isEqualTo(AIResponseAction.REPLY);
 		assertThat(fakeDecision.reply()).isEqualTo("AI Response: How do I deploy Spring Boot?");

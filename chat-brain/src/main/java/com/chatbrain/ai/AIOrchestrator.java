@@ -64,8 +64,7 @@ public class AIOrchestrator {
 	}
 
 	private void executeDecision(ChatMessageEvent event, AIResponseDecision decision) {
-		LOGGER.info("Executing AI decision [action={}, remember={}, reason={}]",
-				decision.action(), decision.remember(), decision.reason());
+		LOGGER.info("Executing AI decision [action={}]", decision.action());
 			switch (decision.action()) {
 			case REPLY -> youtubePublisher.publish(decision.reply());
 			case IGNORE -> LOGGER.info("AI decision ignored the message; no reply will be published");
