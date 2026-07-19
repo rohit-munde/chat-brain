@@ -1,6 +1,7 @@
 package com.chatbrain.events;
 
 import com.chatbrain.listeners.EventOrchestrationListener;
+import com.chatbrain.memory.MemoryListener;
 import com.chatbrain.platform.Platform;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
@@ -16,15 +17,18 @@ class StreamEventIntegrationTests {
 	@Test
 	void springEventBusDeliversSubscriberEventToOrchestrationListener() {
 		EventOrchestrationListener listener = mock(EventOrchestrationListener.class);
+		MemoryListener memoryListener = mock(MemoryListener.class);
 		try (AnnotationConfigApplicationContext context =
 					new AnnotationConfigApplicationContext()) {
 			context.registerBean(EventOrchestrationListener.class, () -> listener);
+			context.registerBean(MemoryListener.class, () -> memoryListener);
 			context.refresh();
 			SubscriberEvent event = subscriberEvent();
 
 			context.publishEvent(event);
 
 			verify(listener).onSubscriberEvent(event);
+			verify(memoryListener).onStreamEvent(event);
 		}
 	}
 

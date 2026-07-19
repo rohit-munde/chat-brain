@@ -2,12 +2,14 @@ package com.chatbrain.repository;
 
 import com.chatbrain.entity.Alias;
 import com.chatbrain.entity.MemoryCategory;
+import com.chatbrain.entity.MemoryConfidence;
 import com.chatbrain.entity.MemorySource;
+import com.chatbrain.entity.MemoryType;
 import com.chatbrain.entity.PlatformIdentity;
 import com.chatbrain.entity.User;
-import com.chatbrain.entity.UserMemory;
 import com.chatbrain.memory.Memory;
 import com.chatbrain.memory.MemoryPersistenceService;
+import com.chatbrain.memory.MemoryService;
 import com.chatbrain.platform.Platform;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,7 +29,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 		"spring.jpa.hibernate.ddl-auto=update"
 })
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import(MemoryPersistenceService.class)
+@Import({MemoryService.class, MemoryPersistenceService.class})
 class RepositoryPersistenceTests {
 
 	@Autowired
@@ -40,10 +42,13 @@ class RepositoryPersistenceTests {
 	private AliasRepository aliasRepository;
 
 	@Autowired
-	private UserMemoryRepository userMemoryRepository;
+	private MemoryRepository memoryRepository;
 
 	@Autowired
 	private MemoryPersistenceService memoryPersistenceService;
+
+	@Autowired
+	private MemoryService memoryService;
 
 	@Autowired
 	private TestEntityManager entityManager;
@@ -53,7 +58,7 @@ class RepositoryPersistenceTests {
 		assertThat(userRepository).isNotNull();
 		assertThat(platformIdentityRepository).isNotNull();
 		assertThat(aliasRepository).isNotNull();
-		assertThat(userMemoryRepository).isNotNull();
+		assertThat(memoryRepository).isNotNull();
 	}
 
 	@Test
@@ -96,38 +101,68 @@ class RepositoryPersistenceTests {
 	}
 
 	@Test
-	void userMemoryRepositoryKeepsMemoriesScopedToTheirOwner() {
+	void memoryRepositoryKeepsMemoriesScopedToTheirOwner() {
 		User firstUser = userRepository.saveAndFlush(User.create());
 		User secondUser = userRepository.saveAndFlush(User.create());
 		String firstContent = "first-user-memory-" + UUID.randomUUID();
 		String secondContent = "second-user-memory-" + UUID.randomUUID();
-		UserMemory firstMemory = new UserMemory(
+		com.chatbrain.entity.Memory firstMemory = new com.chatbrain.entity.Memory(
 				firstUser,
-				MemoryCategory.ACHIEVEMENT,
+				MemoryType.ACHIEVEMENT,
 				firstContent,
-				1,
-				MemorySource.USER);
-		UserMemory secondMemory = new UserMemory(
+				MemoryConfidence.HIGH,
+				MemorySource.USER_MESSAGE);
+		com.chatbrain.entity.Memory secondMemory = new com.chatbrain.entity.Memory(
 				secondUser,
-				MemoryCategory.PREFERENCE,
+				MemoryType.PREFERENCE,
 				secondContent,
-				1,
-				MemorySource.USER);
+				MemoryConfidence.MEDIUM,
+				MemorySource.MANUAL);
 
-		userMemoryRepository.saveAndFlush(firstMemory);
-		userMemoryRepository.saveAndFlush(secondMemory);
+		memoryRepository.saveAndFlush(firstMemory);
+		memoryRepository.saveAndFlush(secondMemory);
 		entityManager.clear();
 
-		assertThat(userMemoryRepository.findTop5ByUserIdOrderByCreatedAtDesc(firstUser.getId()))
-				.extracting(UserMemory::getContent)
+		assertThat(memoryRepository.findTop5ByUserIdOrderByCreatedAtDesc(firstUser.getId()))
+				.extracting(com.chatbrain.entity.Memory::getValue)
 				.containsExactly(firstContent)
 				.doesNotContain(secondContent);
-		assertThat(userMemoryRepository.findTop5ByUserIdOrderByCreatedAtDesc(secondUser.getId()))
-				.extracting(UserMemory::getContent)
+		assertThat(memoryRepository.findTop5ByUserIdOrderByCreatedAtDesc(secondUser.getId()))
+				.extracting(com.chatbrain.entity.Memory::getValue)
 				.containsExactly(secondContent)
 				.doesNotContain(firstContent);
-		assertThat(userMemoryRepository.findByIdAndUserId(
+		assertThat(memoryRepository.findByIdAndUserId(
 				firstMemory.getId(), secondUser.getId())).isEmpty();
+	}
+
+	@Test
+	void memoryServiceOwnsCrudAndTypeQueries() {
+		User owner = userRepository.saveAndFlush(User.create());
+		com.chatbrain.entity.Memory created = memoryService.createMemory(
+				owner,
+				MemoryType.LANGUAGE,
+				"Java",
+				MemoryConfidence.HIGH,
+				MemorySource.USER_MESSAGE);
+
+		assertThat(memoryService.findMemoriesForUser(owner))
+				.extracting(com.chatbrain.entity.Memory::getValue)
+				.containsExactly("Java");
+		assertThat(memoryService.findByType(owner, MemoryType.LANGUAGE))
+				.extracting(com.chatbrain.entity.Memory::getId)
+				.containsExactly(created.getId());
+
+		com.chatbrain.entity.Memory updated = memoryService.updateMemory(
+				owner,
+				created.getId(),
+				MemoryType.PROJECT,
+				"CommunityBrain",
+				MemoryConfidence.MEDIUM,
+				MemorySource.MANUAL);
+		assertThat(updated.getValue()).isEqualTo("CommunityBrain");
+
+		memoryService.deleteMemory(owner, created.getId());
+		assertThat(memoryService.findMemoriesForUser(owner)).isEmpty();
 	}
 
 	@Test
@@ -140,7 +175,7 @@ class RepositoryPersistenceTests {
 				MemoryCategory.INTEREST,
 				"Uses Spring Boot",
 				2,
-				MemorySource.USER);
+				MemorySource.USER_MESSAGE);
 
 		assertThat(persisted.id()).isNotNull();
 		assertThat(memoryPersistenceService.exists(
@@ -156,7 +191,7 @@ class RepositoryPersistenceTests {
 				MemoryCategory.PREFERENCE,
 				"Prefers Spring Boot",
 				3,
-				MemorySource.USER);
+				MemorySource.USER_MESSAGE);
 		assertThat(updated.content()).isEqualTo("Prefers Spring Boot");
 		assertThat(memoryPersistenceService.retrieveRecent(owner))
 				.extracting(Memory::content)
@@ -167,7 +202,7 @@ class RepositoryPersistenceTests {
 				MemoryCategory.OTHER,
 				"Not allowed",
 				1,
-				MemorySource.USER))
+				MemorySource.USER_MESSAGE))
 				.isInstanceOf(IllegalArgumentException.class);
 	}
 

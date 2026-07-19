@@ -1,12 +1,11 @@
 package com.chatbrain.memory;
 
 import com.chatbrain.entity.MemoryCategory;
+import com.chatbrain.entity.MemoryConfidence;
 import com.chatbrain.entity.MemorySource;
+import com.chatbrain.entity.MemoryType;
 import com.chatbrain.entity.User;
-import com.chatbrain.entity.UserMemory;
-import com.chatbrain.repository.UserMemoryRepository;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Objects;
@@ -15,50 +14,40 @@ import java.util.UUID;
 @Service
 public class MemoryPersistenceService {
 
-	private final UserMemoryRepository memoryRepository;
+	private final MemoryService memoryService;
 
-	public MemoryPersistenceService(UserMemoryRepository memoryRepository) {
-		this.memoryRepository = memoryRepository;
+	public MemoryPersistenceService(MemoryService memoryService) {
+		this.memoryService = memoryService;
 	}
 
-	@Transactional
 	public Memory persist(
 			User user,
 			MemoryCategory category,
 			String content,
 			Integer importance,
 			MemorySource source) {
-		UUID userId = requirePersistedUser(user);
-		UserMemory entity = new UserMemory(
+		com.chatbrain.entity.Memory savedMemory = memoryService.createMemory(
 				user,
-				Objects.requireNonNull(category, "category must not be null"),
+				toMemoryType(category),
 				requireContent(content),
-				importance,
-				Objects.requireNonNull(source, "source must not be null"));
-		UserMemory savedMemory = memoryRepository.save(entity);
-		if (!userId.equals(savedMemory.getUser().getId())) {
-			throw new IllegalStateException("Persisted memory owner does not match the requested user");
-		}
+				toConfidence(importance),
+				toMemorySource(source));
 		return toMemory(savedMemory);
 	}
 
-	@Transactional(readOnly = true)
 	public List<Memory> retrieveRecent(User user) {
-		UUID userId = requirePersistedUser(user);
-		return memoryRepository.findTop5ByUserIdOrderByCreatedAtDesc(userId).stream()
+		return memoryService.findRecentMemoriesForUser(user).stream()
 				.map(this::toMemory)
 				.toList();
 	}
 
-	@Transactional(readOnly = true)
 	public boolean exists(User user, MemoryCategory category, String content) {
-		return memoryRepository.existsByUserIdAndCategoryAndContentIgnoreCase(
-				requirePersistedUser(user),
-				Objects.requireNonNull(category, "category must not be null"),
-				requireContent(content).trim());
+		return memoryService.exists(
+				user,
+				toMemoryType(category),
+				requireContent(content));
 	}
 
-	@Transactional
 	public Memory update(
 			User user,
 			UUID memoryId,
@@ -66,25 +55,13 @@ public class MemoryPersistenceService {
 			String content,
 			Integer importance,
 			MemorySource source) {
-		UUID userId = requirePersistedUser(user);
-		UserMemory memory = memoryRepository.findByIdAndUserId(
-				Objects.requireNonNull(memoryId, "memoryId must not be null"),
-				userId)
-				.orElseThrow(() -> new IllegalArgumentException(
-						"Memory was not found for the specified user"));
-		memory.setCategory(Objects.requireNonNull(category, "category must not be null"));
-		memory.setContent(requireContent(content));
-		memory.setImportance(importance);
-		memory.setSource(Objects.requireNonNull(source, "source must not be null"));
-		return toMemory(memoryRepository.save(memory));
-	}
-
-	private UUID requirePersistedUser(User user) {
-		Objects.requireNonNull(user, "user must not be null");
-		if (user.getId() == null) {
-			throw new IllegalArgumentException("user must be persisted before storing memories");
-		}
-		return user.getId();
+		return toMemory(memoryService.updateMemory(
+				user,
+				memoryId,
+				toMemoryType(category),
+				requireContent(content),
+				toConfidence(importance),
+				toMemorySource(source)));
 	}
 
 	private String requireContent(String content) {
@@ -94,11 +71,35 @@ public class MemoryPersistenceService {
 		return content.trim();
 	}
 
-	private Memory toMemory(UserMemory entity) {
+	private Memory toMemory(com.chatbrain.entity.Memory entity) {
 		return new Memory(
 				entity.getId(),
-				entity.getCategory().name(),
-				entity.getContent(),
+				entity.getType().name(),
+				entity.getValue(),
 				entity.getCreatedAt());
+	}
+
+	private MemoryType toMemoryType(MemoryCategory category) {
+		return switch (Objects.requireNonNull(category, "category must not be null")) {
+			case REAL_NAME, IDENTITY -> MemoryType.NAME;
+			case CAREER -> MemoryType.PROFESSION;
+			case TECHNOLOGY -> MemoryType.LANGUAGE;
+			case INTEREST -> MemoryType.INTEREST;
+			case PROJECT -> MemoryType.PROJECT;
+			case ACHIEVEMENT -> MemoryType.ACHIEVEMENT;
+			case PREFERENCE -> MemoryType.PREFERENCE;
+			default -> MemoryType.CUSTOM;
+		};
+	}
+
+	private MemoryConfidence toConfidence(Integer importance) {
+		if (importance == null || importance == 2) {
+			return MemoryConfidence.MEDIUM;
+		}
+		return importance < 2 ? MemoryConfidence.LOW : MemoryConfidence.HIGH;
+	}
+
+	private MemorySource toMemorySource(MemorySource source) {
+		return Objects.requireNonNull(source, "source must not be null");
 	}
 }

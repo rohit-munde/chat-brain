@@ -59,5 +59,7 @@ class YouTubePublisherTests {
 				.isEqualTo("AI Response: Hello");
 		assertThat(publisher.isCommunityBrainMessage("published-123")).isTrue();
 		assertThat(publisher.isCommunityBrainMessage("published-123")).isFalse();
+		assertThat(publisher.isCommunityBrainMessage(null, "AI Response: Hello")).isTrue();
+		assertThat(publisher.isCommunityBrainMessage(null, "AI Response: Hello")).isFalse();
 	}
 }

@@ -75,7 +75,7 @@ public class MemoryLearningService {
 					candidate.category(),
 					candidate.content(),
 					null,
-					MemorySource.USER);
+					MemorySource.USER_MESSAGE);
 			persisted++;
 		}
 

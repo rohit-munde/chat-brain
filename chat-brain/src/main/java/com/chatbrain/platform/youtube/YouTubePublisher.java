@@ -11,7 +11,10 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -20,10 +23,12 @@ import java.util.concurrent.ConcurrentHashMap;
 public class YouTubePublisher {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(YouTubePublisher.class);
+	private static final Duration PUBLISHED_RESPONSE_TTL = Duration.ofMinutes(10);
 
 	private final ObjectProvider<YouTube> youtubeProvider;
 	private final ObjectProvider<LiveChatSessionManager> sessionManagerProvider;
 	private final Set<String> publishedMessageIds = ConcurrentHashMap.newKeySet();
+	private final Map<String, Instant> publishedResponses = new ConcurrentHashMap<>();
 
 	public YouTubePublisher(
 			ObjectProvider<YouTube> youtubeProvider,
@@ -56,6 +61,7 @@ public class YouTubePublisher {
 					.insert(List.of("snippet"), createMessage(session.get().liveChatId(), response))
 					.execute();
 			rememberPublishedMessage(publishedMessage);
+			rememberPublishedResponse(response);
 			LOGGER.info("Published Successfully");
 		} catch (GoogleJsonResponseException exception) {
 			String details = exception.getDetails() == null
@@ -70,6 +76,13 @@ public class YouTubePublisher {
 
 	public boolean isCommunityBrainMessage(String messageId) {
 		return messageId != null && publishedMessageIds.remove(messageId);
+	}
+
+	public boolean isCommunityBrainMessage(String messageId, String message) {
+		boolean matchedMessageId = isCommunityBrainMessage(messageId);
+		Instant expiresAt = message == null ? null : publishedResponses.remove(message);
+		boolean matchedResponse = expiresAt != null && expiresAt.isAfter(Instant.now());
+		return matchedMessageId || matchedResponse;
 	}
 
 	private LiveChatMessage createMessage(String liveChatId, String response) {
@@ -88,5 +101,11 @@ public class YouTubePublisher {
 				&& !publishedMessage.getId().isBlank()) {
 			publishedMessageIds.add(publishedMessage.getId());
 		}
+	}
+
+	private void rememberPublishedResponse(String response) {
+		Instant now = Instant.now();
+		publishedResponses.entrySet().removeIf(entry -> !entry.getValue().isAfter(now));
+		publishedResponses.put(response, now.plus(PUBLISHED_RESPONSE_TTL));
 	}
 }

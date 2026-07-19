@@ -188,7 +188,16 @@ Confirm YouTube Data API v3 is enabled, the authenticated account can access the
 
 ### Quota or rate-limit errors
 
-Check the YouTube Data API v3 quota in Google Cloud Console. ChatBrain waits for the polling interval returned by YouTube; do not run multiple instances against the same stream during verification.
+Check the YouTube Data API v3 quota in Google Cloud Console. ChatBrain waits for the greater of YouTube's returned polling interval and a 10-second safety minimum. It also waits 30 seconds before retrying discovery or temporary failures. Do not run multiple instances against the same stream during verification.
+
+The safety intervals can be increased without changing code:
+
+```properties
+YOUTUBE_MINIMUM_POLL_INTERVAL=15s
+YOUTUBE_RETRY_INTERVAL=60s
+```
+
+Keep the minimum poll interval at 10 seconds or higher unless you have verified the resulting quota impact. ChatBrain logs the cumulative number of `liveChatMessages.list` requests attempted by the current process on the first request and every 25 requests thereafter.
 
 ### Authorization changed but old token is reused
 

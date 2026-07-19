@@ -30,13 +30,13 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 @Component
 @ConditionalOnProperty(name = "chatbrain.youtube.enabled", havingValue = "true")
 public final class YouTubePlatformAdapter implements PlatformAdapter {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(YouTubePlatformAdapter.class);
-	private static final long RETRY_DELAY_MILLIS = 5_000L;
 	private static final Set<String> INVALID_SESSION_REASONS = Set.of(
 			"liveChatDisabled",
 			"liveChatEnded",
@@ -45,22 +45,26 @@ public final class YouTubePlatformAdapter implements PlatformAdapter {
 	private final YouTube youtube;
 	private final LiveChatSessionManager sessionManager;
 	private final YouTubePublisher youtubePublisher;
+	private final YouTubePollingPolicy pollingPolicy;
 	private final PlatformMessageMapper messageMapper;
 	private final ApplicationEventPublisher eventPublisher;
 	private final ConcurrentHashMap<String, YouTubeAuthorIdentity> authorIdentityCache =
 			new ConcurrentHashMap<>();
 	private final AtomicBoolean running = new AtomicBoolean(false);
+	private final AtomicLong liveChatListRequestCount = new AtomicLong();
 	private ExecutorService pollingExecutor;
 
 	public YouTubePlatformAdapter(
 			YouTube youtube,
 			LiveChatSessionManager sessionManager,
 			YouTubePublisher youtubePublisher,
+			YouTubePollingPolicy pollingPolicy,
 			PlatformMessageMapper messageMapper,
 			ApplicationEventPublisher eventPublisher) {
 		this.youtube = youtube;
 		this.sessionManager = sessionManager;
 		this.youtubePublisher = youtubePublisher;
+		this.pollingPolicy = pollingPolicy;
 		this.messageMapper = messageMapper;
 		this.eventPublisher = eventPublisher;
 	}
@@ -178,6 +182,10 @@ public final class YouTubePlatformAdapter implements PlatformAdapter {
 
 	private LiveChatMessageListResponse requestMessages(String liveChatId, String nextPageToken)
 			throws IOException {
+		long requestCount = liveChatListRequestCount.incrementAndGet();
+		if (requestCount == 1 || requestCount % 25 == 0) {
+			LOGGER.info("YouTube live-chat list requests attempted by this process: {}", requestCount);
+		}
 		return youtube.liveChatMessages()
 				.list(liveChatId, List.of("snippet", "authorDetails"))
 				.setPageToken(nextPageToken)
@@ -191,7 +199,10 @@ public final class YouTubePlatformAdapter implements PlatformAdapter {
 	}
 
 	private void publishMessage(LiveChatMessage liveChatMessage) {
-		if (youtubePublisher.isCommunityBrainMessage(liveChatMessage.getId())) {
+		String displayMessage = liveChatMessage.getSnippet() == null
+				? null
+				: liveChatMessage.getSnippet().getDisplayMessage();
+		if (youtubePublisher.isCommunityBrainMessage(liveChatMessage.getId(), displayMessage)) {
 			LOGGER.debug("Ignoring CommunityBrain's own YouTube message {}", liveChatMessage.getId());
 			return;
 		}
@@ -291,14 +302,13 @@ public final class YouTubePlatformAdapter implements PlatformAdapter {
 	}
 
 	private void waitForNextPoll(Long pollingIntervalMillis) throws IOException {
-		if (pollingIntervalMillis == null) {
-			throw new IOException("YouTube response did not include pollingIntervalMillis");
-		}
-		waitFor(pollingIntervalMillis);
+		long delayMillis = pollingPolicy.nextPollDelayMillis(pollingIntervalMillis);
+		LOGGER.debug("Waiting {} ms before the next YouTube live-chat request", delayMillis);
+		waitFor(delayMillis);
 	}
 
 	private void waitBeforeRetry() {
-		waitFor(RETRY_DELAY_MILLIS);
+		waitFor(pollingPolicy.retryDelayMillis());
 	}
 
 	private void waitFor(long delayMillis) {

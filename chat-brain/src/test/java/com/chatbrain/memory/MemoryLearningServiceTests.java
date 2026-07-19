@@ -43,10 +43,10 @@ class MemoryLearningServiceTests {
 
 		verify(persistenceService, never()).persist(
 				user, duplicate.category(), duplicate.content(), null,
-				MemorySource.USER);
+				MemorySource.USER_MESSAGE);
 		verify(persistenceService).persist(
 				user, newMemory.category(), newMemory.content(), null,
-				MemorySource.USER);
+				MemorySource.USER_MESSAGE);
 	}
 
 	@Test
