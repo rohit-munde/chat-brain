@@ -8,8 +8,9 @@ public record AIResponseDecision(
 		if (action == null) {
 			throw new IllegalArgumentException("action must not be null");
 		}
-		if (action == AIResponseAction.REPLY && (reply == null || reply.isBlank())) {
-			throw new IllegalArgumentException("reply must not be blank when action is REPLY");
+		if ((action == AIResponseAction.REPLY || action == AIResponseAction.COMMENT)
+				&& (reply == null || reply.isBlank())) {
+			throw new IllegalArgumentException("reply must not be blank when action publishes content");
 		}
 		if (reply != null) {
 			reply = reply.trim();

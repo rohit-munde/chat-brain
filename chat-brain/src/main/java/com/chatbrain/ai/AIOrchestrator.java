@@ -67,6 +67,7 @@ public class AIOrchestrator {
 		LOGGER.info("Executing AI decision [action={}]", decision.action());
 			switch (decision.action()) {
 			case REPLY -> youtubePublisher.publish(decision.reply());
+			case COMMENT -> youtubePublisher.publish(decision.reply());
 			case IGNORE -> LOGGER.info("AI decision ignored the message; no reply will be published");
 		}
 		for (AIResponseDecisionObserver observer : decisionObservers) {

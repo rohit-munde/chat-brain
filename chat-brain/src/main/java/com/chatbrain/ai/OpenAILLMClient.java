@@ -8,6 +8,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
+import jakarta.annotation.PostConstruct;
+
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
@@ -31,6 +33,16 @@ public class OpenAILLMClient implements LLMClient {
 			throw new IllegalArgumentException("OpenAI model must not be blank");
 		}
 		this.model = model;
+	}
+
+	@PostConstruct
+	void logActiveProvider() {
+		LOGGER.info("""
+				====================================
+				AI Provider: OpenAI
+				Model: {}
+				API Key: configured
+				====================================""", model);
 	}
 
 	@Override

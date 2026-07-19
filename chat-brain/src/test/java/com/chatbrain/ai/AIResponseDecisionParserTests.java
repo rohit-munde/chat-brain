@@ -11,6 +11,16 @@ class AIResponseDecisionParserTests {
 			new AIResponseDecisionParser(new ObjectMapper());
 
 	@Test
+	void parsesProactiveCommentDecision() {
+		AIResponseDecision decision = parser.parse("""
+				{"action":"COMMENT","reply":"Everyone act surprised."}
+				""");
+
+		assertThat(decision.action()).isEqualTo(AIResponseAction.COMMENT);
+		assertThat(decision.reply()).isEqualTo("Everyone act surprised.");
+	}
+
+	@Test
 	void parsesReplyDecision() {
 		AIResponseDecision decision = parser.parse("""
 				{

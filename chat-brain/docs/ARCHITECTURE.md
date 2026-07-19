@@ -239,3 +239,53 @@ This design leaves request behavior unchanged and prepares the metrics for futur
 Grafana, Actuator, estimated-quota, and dashboard integrations. Adding another endpoint requires
 an enum entry and wrapping its API operation; it does not require duplicating counter or timer
 logic.
+
+## Proactive Stream Commentary V1
+
+Proactive commentary is a parallel event-driven capability. It does not replace or alter
+the viewer-message pipeline. Coding and stream activity producers can publish any supported
+`ProactiveStreamEvent` through Spring's existing event bus:
+
+```text
+BuildSucceededEvent / CompilationFailedEvent / ApplicationStartedEvent
+FeatureCompletedEvent / LongDebugSessionEvent / LongSilenceEvent / MilestoneReachedEvent
+        ↓
+ProactiveCommentaryListener
+        ↓
+ProactiveCommentaryOrchestrator
+        ├── StreamTimeline + StreamContext
+        ├── ProactiveCommentaryGuard
+        ├── PromptBuilder
+        ├── LLMClient + AIResponseDecisionParser
+        └── YouTubePublisher
+```
+
+`StreamTimeline` retains a bounded, in-memory history of real stream events. `StreamContext`
+combines that history with bounded recent chat and AI comments plus the configured stream
+title, project, and coding topic. Missing context remains explicitly unavailable; it is never
+inferred or invented.
+
+The decision contract now supports `COMMENT` alongside `REPLY` and `IGNORE`. `COMMENT` means
+an unsolicited stream comment and is sent through the existing `YouTubePublisher`. The viewer
+message prompt continues requesting only `REPLY` or `IGNORE`, so its behavior is unchanged.
+
+Flood protection runs before and after generation. A configurable cooldown limits frequency,
+a viewer chat message must occur between proactive posts, and normalized recent comments block
+repeated or substantially overlapping output. The prompt also receives recent activity and
+explicitly prefers silence. V1 deliberately adds no scheduler or automatic event detector;
+future producers can publish the event types without changing this pipeline.
+
+Micrometer meters `chatbrain.proactive.comments.generated`, `.published`, `.skipped`, and
+`chatbrain.proactive.latency` capture proactive behavior without altering YouTube API metrics.
+
+Configuration defaults:
+
+```yaml
+communitybrain.ai.proactive.enabled: false
+communitybrain.ai.proactive.minimum-cooldown: 5m
+communitybrain.ai.proactive.stream-title: Not provided
+communitybrain.ai.proactive.current-project: ChatBrain
+communitybrain.ai.proactive.current-coding-topic: Not provided
+```
+
+The feature remains disabled until a trusted stream-event producer is connected.

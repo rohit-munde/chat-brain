@@ -8,7 +8,13 @@ communitybrain:
       enabled: ${COMMUNITYBRAIN_SUBSCRIBER_EVENTS_ENABLED:true}
   ai:
     enabled: ${COMMUNITYBRAIN_AI_ENABLED:true}
-    provider: ${COMMUNITYBRAIN_AI_PROVIDER:fake}
+    provider: ${COMMUNITYBRAIN_AI_PROVIDER}
+    proactive:
+      enabled: ${COMMUNITYBRAIN_PROACTIVE_ENABLED:false}
+      minimum-cooldown: ${COMMUNITYBRAIN_PROACTIVE_COOLDOWN:5m}
+      stream-title: ${COMMUNITYBRAIN_STREAM_TITLE:Not provided}
+      current-project: ${COMMUNITYBRAIN_CURRENT_PROJECT:ChatBrain}
+      current-coding-topic: ${COMMUNITYBRAIN_CURRENT_CODING_TOPIC:Not provided}
     openai:
       api-key: ${OPENAI_API_KEY:}
       model: ${OPENAI_MODEL:gpt-5.5}
