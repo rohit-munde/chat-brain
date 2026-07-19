@@ -165,7 +165,14 @@ class AIOrchestratorTests {
 				.contains("Current Message:")
 				.contains("How do I deploy Spring Boot?")
 				.contains("intelligent invisible co-host")
-				.contains("Prefer fewer high-quality responses")
+				.contains("Most replies must be 1-3 natural sentences")
+				.contains("Engineering Humor")
+				.contains("Roasting Rohit")
+				.contains("Never roast")
+				.contains("Stream Awareness")
+				.contains("Quality over quantity")
+				.contains("Never mention OpenAI")
+				.contains("Do not force humor into every reply")
 				.contains("For a reply: {\"action\":\"REPLY\"")
 				.contains("For no response: {\"action\":\"IGNORE\"}");
 		AIResponseDecision fakeDecision = parser().parse(new FakeLLMClient().generateReply(prompt));

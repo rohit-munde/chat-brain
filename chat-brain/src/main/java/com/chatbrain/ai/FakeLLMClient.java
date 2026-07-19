@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
 public class FakeLLMClient implements LLMClient {
 
 	private static final String MESSAGE_PREFIX = "Current Message:\n";
-	private static final String RESPONSE_INSTRUCTION = "\n\nRole\n";
+	private static final String RESPONSE_INSTRUCTION = "\n\nOutput Contract\n";
 
 	@Override
 	public String generateReply(String prompt) {
